@@ -1,11 +1,13 @@
-# Stockbar 股票监控
-
-> 一款轻量级 macOS 菜单栏股票行情监控工具，支持 A股、港股、美股实时监控。
-
-![平台](https://img.shields.io/badge/平台-macOS%2013.5%2B-lightgrey?logo=apple)
-![架构](https://img.shields.io/badge/架构-Universal%20(Intel%20%2B%20Apple%20Silicon)-blue)
-![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift)
-![许可证](https://img.shields.io/badge/许可证-MIT-green)
+<div align="center">
+    <img src="StockMonitor/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" width="200" height="200">
+    <h1>Stockbar</h1>
+    <p>一款轻量级 macOS 菜单栏股票行情监控工具，支持 A股、港股、美股实时监控。</p>
+    <br>
+    <img src="https://img.shields.io/badge/平台-macOS%2013.5%2B-lightgrey?logo=apple">
+    <img src="https://img.shields.io/badge/架构-Universal%20(Intel%20%2B%20Apple%20Silicon)-blue">
+    <img src="https://img.shields.io/badge/Swift-5.9-orange?logo=swift">
+    <img src="https://img.shields.io/badge/许可证-MIT-green">
+</div>
 
 ---
 

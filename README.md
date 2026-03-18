@@ -1,11 +1,13 @@
-# Stockbar
-
-> A lightweight macOS menu bar app for monitoring A-share, Hong Kong, and US stock markets in real time.
-
-![Platform](https://img.shields.io/badge/platform-macOS%2013.5%2B-lightgrey?logo=apple)
-![Architecture](https://img.shields.io/badge/arch-Universal%20(Intel%20%2B%20Apple%20Silicon)-blue)
-![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift)
-![License](https://img.shields.io/badge/license-MIT-green)
+<div align="center">
+    <img src="StockMonitor/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" width="200" height="200">
+    <h1>Stockbar</h1>
+    <p>A lightweight macOS menu bar app for monitoring A-share, Hong Kong, and US stock markets in real time.</p>
+    <br>
+    <img src="https://img.shields.io/badge/platform-macOS%2013.5%2B-lightgrey?logo=apple">
+    <img src="https://img.shields.io/badge/arch-Universal%20(Intel%20%2B%20Apple%20Silicon)-blue">
+    <img src="https://img.shields.io/badge/Swift-5.9-orange?logo=swift">
+    <img src="https://img.shields.io/badge/license-MIT-green">
+</div>
 
 ---
 
