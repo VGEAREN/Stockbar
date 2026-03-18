@@ -1,13 +1,13 @@
 import Foundation
 import os
 
-let appLogger = Logger(subsystem: "com.vgearen.StockMonitor", category: "lifecycle")
+let appLogger = Logger(subsystem: "com.vgearen.Stockbar", category: "lifecycle")
 
 /// 写文件日志到 ~/Library/Logs/StockMonitor/app.log
 func logToFile(_ message: String) {
     let fm = FileManager.default
     guard let logDir = fm.urls(for: .libraryDirectory, in: .userDomainMask).first?
-        .appendingPathComponent("Logs/StockMonitor") else { return }
+        .appendingPathComponent("Logs/Stockbar") else { return }
     try? fm.createDirectory(at: logDir, withIntermediateDirectories: true)
     let logFile = logDir.appendingPathComponent("app.log")
 

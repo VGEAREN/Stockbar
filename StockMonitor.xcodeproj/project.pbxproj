@@ -12,13 +12,13 @@
 			containerPortal = 9FBAD6B72F67B3E800F2B1E3 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 9FBAD6BE2F67B3E800F2B1E3;
-			remoteInfo = StockMonitor;
+			remoteInfo = Stockbar;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		9FBAD6BF2F67B3E800F2B1E3 /* StockMonitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StockMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		9FBAD6D12F67B45500F2B1E3 /* StockMonitorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StockMonitorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9FBAD6BF2F67B3E800F2B1E3 /* Stockbar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Stockbar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9FBAD6D12F67B45500F2B1E3 /* StockbarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StockbarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -27,7 +27,7 @@
 			path = StockMonitor;
 			sourceTree = "<group>";
 		};
-		9FBAD6D22F67B45500F2B1E3 /* StockMonitorTests */ = {
+		9FBAD6D22F67B45500F2B1E3 /* StockbarTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = StockMonitorTests;
 			sourceTree = "<group>";
@@ -56,7 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				9FBAD6C12F67B3E800F2B1E3 /* StockMonitor */,
-				9FBAD6D22F67B45500F2B1E3 /* StockMonitorTests */,
+				9FBAD6D22F67B45500F2B1E3 /* StockbarTests */,
 				9FBAD6C02F67B3E800F2B1E3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -64,8 +64,8 @@
 		9FBAD6C02F67B3E800F2B1E3 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				9FBAD6BF2F67B3E800F2B1E3 /* StockMonitor.app */,
-				9FBAD6D12F67B45500F2B1E3 /* StockMonitorTests.xctest */,
+				9FBAD6BF2F67B3E800F2B1E3 /* Stockbar.app */,
+				9FBAD6D12F67B45500F2B1E3 /* StockbarTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -75,7 +75,7 @@
 /* Begin PBXNativeTarget section */
 		9FBAD6BE2F67B3E800F2B1E3 /* StockMonitor */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9FBAD6CA2F67B3E900F2B1E3 /* Build configuration list for PBXNativeTarget "StockMonitor" */;
+			buildConfigurationList = 9FBAD6CA2F67B3E900F2B1E3 /* Build configuration list for PBXNativeTarget "Stockbar" */;
 			buildPhases = (
 				9FBAD6BB2F67B3E800F2B1E3 /* Sources */,
 				9FBAD6BC2F67B3E800F2B1E3 /* Frameworks */,
@@ -88,14 +88,14 @@
 			fileSystemSynchronizedGroups = (
 				9FBAD6C12F67B3E800F2B1E3 /* StockMonitor */,
 			);
-			name = StockMonitor;
-			productName = StockMonitor;
-			productReference = 9FBAD6BF2F67B3E800F2B1E3 /* StockMonitor.app */;
+			name = Stockbar;
+			productName = Stockbar;
+			productReference = 9FBAD6BF2F67B3E800F2B1E3 /* Stockbar.app */;
 			productType = "com.apple.product-type.application";
 		};
-		9FBAD6D02F67B45500F2B1E3 /* StockMonitorTests */ = {
+		9FBAD6D02F67B45500F2B1E3 /* StockbarTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9FBAD6D72F67B45500F2B1E3 /* Build configuration list for PBXNativeTarget "StockMonitorTests" */;
+			buildConfigurationList = 9FBAD6D72F67B45500F2B1E3 /* Build configuration list for PBXNativeTarget "StockbarTests" */;
 			buildPhases = (
 				9FBAD6CD2F67B45500F2B1E3 /* Sources */,
 				9FBAD6CE2F67B45500F2B1E3 /* Frameworks */,
@@ -107,11 +107,11 @@
 				9FBAD6D62F67B45500F2B1E3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				9FBAD6D22F67B45500F2B1E3 /* StockMonitorTests */,
+				9FBAD6D22F67B45500F2B1E3 /* StockbarTests */,
 			);
-			name = StockMonitorTests;
-			productName = StockMonitorTests;
-			productReference = 9FBAD6D12F67B45500F2B1E3 /* StockMonitorTests.xctest */;
+			name = StockbarTests;
+			productName = StockbarTests;
+			productReference = 9FBAD6D12F67B45500F2B1E3 /* StockbarTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -133,7 +133,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 9FBAD6BA2F67B3E800F2B1E3 /* Build configuration list for PBXProject "StockMonitor" */;
+			buildConfigurationList = 9FBAD6BA2F67B3E800F2B1E3 /* Build configuration list for PBXProject "Stockbar" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -148,7 +148,7 @@
 			projectRoot = "";
 			targets = (
 				9FBAD6BE2F67B3E800F2B1E3 /* StockMonitor */,
-				9FBAD6D02F67B45500F2B1E3 /* StockMonitorTests */,
+				9FBAD6D02F67B45500F2B1E3 /* StockbarTests */,
 			);
 		};
 /* End PBXProject section */
@@ -327,7 +327,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Stock Monitor";
+				INFOPLIST_KEY_CFBundleDisplayName = "Stockbar";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -336,7 +336,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vgearen.StockMonitor;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vgearen.Stockbar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -361,7 +361,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Stock Monitor";
+				INFOPLIST_KEY_CFBundleDisplayName = "Stockbar";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -370,7 +370,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vgearen.StockMonitor;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vgearen.Stockbar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -390,14 +390,14 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vgearen.StockMonitorTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vgearen.StockbarTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/StockMonitor.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/StockMonitor";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Stockbar.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Stockbar";
 			};
 			name = Debug;
 		};
@@ -409,21 +409,21 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vgearen.StockMonitorTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.vgearen.StockbarTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/StockMonitor.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/StockMonitor";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Stockbar.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Stockbar";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		9FBAD6BA2F67B3E800F2B1E3 /* Build configuration list for PBXProject "StockMonitor" */ = {
+		9FBAD6BA2F67B3E800F2B1E3 /* Build configuration list for PBXProject "Stockbar" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9FBAD6C82F67B3E900F2B1E3 /* Debug */,
@@ -432,7 +432,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9FBAD6CA2F67B3E900F2B1E3 /* Build configuration list for PBXNativeTarget "StockMonitor" */ = {
+		9FBAD6CA2F67B3E900F2B1E3 /* Build configuration list for PBXNativeTarget "Stockbar" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9FBAD6CB2F67B3E900F2B1E3 /* Debug */,
@@ -441,7 +441,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9FBAD6D72F67B45500F2B1E3 /* Build configuration list for PBXNativeTarget "StockMonitorTests" */ = {
+		9FBAD6D72F67B45500F2B1E3 /* Build configuration list for PBXNativeTarget "StockbarTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9FBAD6D82F67B45500F2B1E3 /* Debug */,

@@ -1,4 +1,4 @@
-name: Release DMG
+name: Release Stockbar DMG
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         run: |
           xcodebuild \
             -project StockMonitor.xcodeproj \
-            -scheme StockMonitor \
+            -scheme Stockbar \
             -configuration Release \
             -derivedDataPath build \
             ARCHS="arm64 x86_64" \
@@ -35,21 +35,21 @@ jobs:
       - name: Locate .app
         id: locate
         run: |
-          APP_PATH=$(find build -name "StockMonitor.app" -maxdepth 6 | head -1)
+          APP_PATH=$(find build -name "Stockbar.app" -maxdepth 6 | head -1)
           echo "app_path=$APP_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Create DMG
         run: |
           APP_PATH="${{ steps.locate.outputs.app_path }}"
           VERSION="${GITHUB_REF_NAME}"
-          DMG_NAME="StockMonitor-${VERSION}.dmg"
+          DMG_NAME="Stockbar-${VERSION}.dmg"
 
           mkdir -p dmg_staging
           cp -R "$APP_PATH" dmg_staging/
           ln -s /Applications dmg_staging/Applications
 
           hdiutil create \
-            -volname "StockMonitor ${VERSION}" \
+            -volname "Stockbar ${VERSION}" \
             -srcfolder dmg_staging \
             -ov \
             -format UDZO \
@@ -60,7 +60,7 @@ jobs:
       - name: Upload Release
         uses: softprops/action-gh-release@v2
         with:
-          files: StockMonitor-*.dmg
+          files: Stockbar-*.dmg
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

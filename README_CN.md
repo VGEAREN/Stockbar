@@ -1,4 +1,4 @@
-# StockMonitor 股票监控
+# Stockbar 股票监控
 
 > 一款轻量级 macOS 菜单栏股票行情监控工具，支持 A股、港股、美股实时监控。
 
@@ -43,8 +43,8 @@
 
 ## 安装方法
 
-1. 从 [Releases](../../releases) 页面下载最新的 `StockMonitor.dmg`
-2. 打开 DMG，将 **StockMonitor.app** 拖入 **应用程序** 文件夹
+1. 从 [Releases](../../releases) 页面下载最新的 `Stockbar.dmg`
+2. 打开 DMG，将 **Stockbar.app** 拖入 **应用程序** 文件夹
 3. 启动应用，菜单栏将出现奶牛图标
 
 > **首次启动提示**：如果 macOS 提示"无法验证开发者"，请前往 **系统设置 → 隐私与安全性**，点击 **仍要打开**。
@@ -96,17 +96,17 @@
 ## 本地构建
 
 ```bash
-git clone https://github.com/VGEAREN/StockMonitor.git
-cd StockMonitor/StockMonitor
-open StockMonitor.xcodeproj
+git clone https://github.com/VGEAREN/Stockbar.git
+cd Stockbar/Stockbar
+open Stockbar.xcodeproj
 ```
 
-选择 **StockMonitor** Scheme，目标设为 **My Mac**，按 **⌘R** 运行。
+选择 **Stockbar** Scheme，目标设为 **My Mac**，按 **⌘R** 运行。
 
 构建 Universal 发布包：
 
 ```bash
-xcodebuild -scheme StockMonitor -configuration Release \
+xcodebuild -scheme Stockbar -configuration Release \
   ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO
 ```
 
@@ -115,7 +115,7 @@ xcodebuild -scheme StockMonitor -configuration Release \
 ## 项目结构
 
 ```
-StockMonitor/
+Stockbar/
 ├── Models/
 │   ├── Stock.swift          # 股票模型（代码、名称、市场、成本、持仓）
 │   └── Quote.swift          # 行情模型（价格、涨跌、扩展时段价格）
@@ -134,7 +134,7 @@ StockMonitor/
 │   ├── SettingsView.swift   # 设置面板
 │   ├── ToolbarView.swift    # 工具栏
 │   └── ProfitSummaryView.swift
-└── StockMonitorApp.swift    # App 入口 + AppDelegate
+└── StockbarApp.swift    # App 入口 + AppDelegate
 ```
 
 ---

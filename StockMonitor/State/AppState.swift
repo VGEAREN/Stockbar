@@ -29,7 +29,7 @@ final class AppState: ObservableObject {
 
     private static var stocksFileURL: URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = support.appendingPathComponent("StockMonitor")
+        let dir = support.appendingPathComponent("Stockbar")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("stocks.json")
     }

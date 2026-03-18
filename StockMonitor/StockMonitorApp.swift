@@ -23,7 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-struct StockMonitorApp: App {
+struct StockbarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState()
 

@@ -1,4 +1,4 @@
-# StockMonitor
+# Stockbar
 
 > A lightweight macOS menu bar app for monitoring A-share, Hong Kong, and US stock markets in real time.
 
@@ -26,7 +26,7 @@
 - **Portfolio P&L** — Set cost price and share count per stock; see floating P&L and daily P&L live
 - **Sort by change%** — One-click toggle to re-sort the stock list by today's performance
 - **Color themes** — Chinese convention (red = up, green = down) or Western convention (green = up, red = down)
-- **Persistent storage** — Stock list saved to `~/Library/Application Support/StockMonitor/stocks.json`; auto-backup with up to 10 rolling snapshots
+- **Persistent storage** — Stock list saved to `~/Library/Application Support/Stockbar/stocks.json`; auto-backup with up to 10 rolling snapshots
 - **Launch at login** — Registers as a login item via `SMAppService`; toggle in Settings
 - **Universal binary** — Runs natively on both Apple Silicon and Intel Macs
 
@@ -43,8 +43,8 @@
 
 ## Installation
 
-1. Download the latest `StockMonitor.dmg` from [Releases](../../releases)
-2. Open the DMG and drag **StockMonitor.app** into your **Applications** folder
+1. Download the latest `Stockbar.dmg` from [Releases](../../releases)
+2. Open the DMG and drag **Stockbar.app** into your **Applications** folder
 3. Launch the app — the cow icon will appear in your menu bar
 
 > **First launch on macOS 13+**: If macOS shows a security warning, go to **System Settings → Privacy & Security** and click **Open Anyway**.
@@ -96,17 +96,17 @@ All data is fetched from free public APIs — no API key required.
 ## Building from Source
 
 ```bash
-git clone https://github.com/VGEAREN/StockMonitor.git
-cd StockMonitor/StockMonitor
-open StockMonitor.xcodeproj
+git clone https://github.com/VGEAREN/Stockbar.git
+cd Stockbar/Stockbar
+open Stockbar.xcodeproj
 ```
 
-Select the **StockMonitor** scheme, set destination to **My Mac**, and press **⌘R** to run.
+Select the **Stockbar** scheme, set destination to **My Mac**, and press **⌘R** to run.
 
 To build a universal release binary:
 
 ```bash
-xcodebuild -scheme StockMonitor -configuration Release \
+xcodebuild -scheme Stockbar -configuration Release \
   ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO
 ```
 
@@ -115,7 +115,7 @@ xcodebuild -scheme StockMonitor -configuration Release \
 ## Project Structure
 
 ```
-StockMonitor/
+Stockbar/
 ├── Models/
 │   ├── Stock.swift          # Stock model (id, name, market, cost, shares)
 │   └── Quote.swift          # Quote model (price, change, extended price)
@@ -134,7 +134,7 @@ StockMonitor/
 │   ├── SettingsView.swift   # Settings panel
 │   ├── ToolbarView.swift    # Sort / settings toolbar
 │   └── ProfitSummaryView.swift
-└── StockMonitorApp.swift    # App entry point + AppDelegate
+└── StockbarApp.swift    # App entry point + AppDelegate
 ```
 
 ---

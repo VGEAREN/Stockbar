@@ -1,5 +1,5 @@
 import XCTest
-@testable import StockMonitor
+@testable import Stockbar
 
 @MainActor
 final class AppStateTests: XCTestCase {
