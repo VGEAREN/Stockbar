@@ -1,5 +1,4 @@
 import SwiftUI
-import ServiceManagement
 
 @MainActor
 struct SettingsView: View {
@@ -8,7 +7,7 @@ struct SettingsView: View {
 
     @ObservedObject private var updater = UpdateChecker.shared
 
-    @State private var launchAtLogin = (SMAppService.mainApp.status == .enabled)
+    @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var searchText    = ""
     @State private var searchResults = [SearchResult]()
     @State private var isSearching   = false
@@ -37,28 +36,20 @@ struct SettingsView: View {
 
                 Divider()
 
-                // 状态栏显示股票
+                // 状态栏显示
                 section("状态栏显示") {
                     Picker("", selection: Binding(
                         get: { appState.statusBarStockId },
                         set: { appState.statusBarStockId = $0 }
                     )) {
                         Text("不显示").tag("__none__")
+                        Text("日盈亏").tag("__daily_pnl__")
+                        Text("总盈亏").tag("__total_pnl__")
+                        Text("日盈亏 + 总盈亏").tag("__both_pnl__")
+                        Divider()
                         Text("（自动选第一只）").tag("")
                         ForEach(appState.stocks) { s in
                             Text("\(s.name)  \(s.id)").tag(s.id)
-                        }
-                    }.pickerStyle(.menu)
-                }
-
-                // 状态栏盈亏显示
-                section("状态栏盈亏") {
-                    Picker("", selection: Binding(
-                        get: { appState.config.statusBarPnL },
-                        set: { appState.config.statusBarPnL = $0 }
-                    )) {
-                        ForEach(StatusBarPnL.allCases, id: \.rawValue) { opt in
-                            Text(opt.displayName).tag(opt)
                         }
                     }.pickerStyle(.menu)
                 }
@@ -100,17 +91,8 @@ struct SettingsView: View {
                 section("开机启动") {
                     Toggle("登录后自动启动", isOn: $launchAtLogin)
                         .onChange(of: launchAtLogin) { enabled in
-                            do {
-                                if enabled {
-                                    try SMAppService.mainApp.register()
-                                } else {
-                                    try SMAppService.mainApp.unregister()
-                                }
-                            } catch {
-                                logToFile("SMAppService \(enabled ? "register" : "unregister") failed: \(error)")
-                            }
-                            // 刷新为实际状态，防止 UI 与系统不一致
-                            launchAtLogin = (SMAppService.mainApp.status == .enabled)
+                            LaunchAtLogin.setEnabled(enabled)
+                            launchAtLogin = LaunchAtLogin.isEnabled
                         }
                 }
 

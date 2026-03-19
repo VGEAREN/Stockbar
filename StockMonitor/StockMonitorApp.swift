@@ -1,5 +1,4 @@
 import SwiftUI
-import ServiceManagement
 import AppKit
 import os
 
@@ -7,8 +6,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         appLogger.info("applicationDidFinishLaunching")
         logToFile("applicationDidFinishLaunching — pid=\(ProcessInfo.processInfo.processIdentifier)")
-        let status = SMAppService.mainApp.status
-        logToFile("SMAppService.mainApp.status = \(status.rawValue)")
     }
 
     func applicationWillTerminate(_ notification: Notification) {

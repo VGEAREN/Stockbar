@@ -221,7 +221,7 @@ final class AppState: ObservableObject {
     // MARK: - 状态栏
 
     var statusBarStock: Stock? {
-        if statusBarStockId == "__none__" { return nil }
+        if statusBarStockId.hasPrefix("__") { return nil }
         return stocks.first(where: { $0.id == statusBarStockId }) ?? stocks.first
     }
 
