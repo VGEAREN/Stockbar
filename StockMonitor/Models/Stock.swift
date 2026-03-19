@@ -30,6 +30,18 @@ struct Stock: Identifiable, Equatable {
         guard let shares = holdingShares else { return nil }
         return quote.change * shares
     }
+
+    /// 浮盈亏百分比 = (现价 - 成本价) / 成本价 × 100
+    func pnlPercent(quote: Quote) -> Double? {
+        guard let cost = costPrice, cost > 0 else { return nil }
+        return (quote.price - cost) / cost * 100
+    }
+
+    /// 当日盈亏百分比 = 涨跌额 / 成本价 × 100
+    func dailyPnlPercent(quote: Quote) -> Double? {
+        guard let cost = costPrice, cost > 0 else { return nil }
+        return quote.change / cost * 100
+    }
 }
 
 // MARK: - Codable（容错：未知字段用默认值，避免新版本解码老数据时整条失败）

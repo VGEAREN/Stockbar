@@ -107,18 +107,24 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
-                        Button {
-                            UpdateChecker.shared.checkForUpdates()
-                        } label: {
-                            if UpdateChecker.shared.isChecking {
-                                ProgressView().scaleEffect(0.6).frame(width: 60)
-                            } else {
-                                Text("检查更新")
+                        if updater.isBusy {
+                            HStack(spacing: 4) {
+                                ProgressView().scaleEffect(0.6)
+                                Text(updater.status)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
+                        } else if !updater.status.isEmpty {
+                            Text(updater.status)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Button("检查更新") {
+                                updater.checkAndUpdate()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(UpdateChecker.shared.isChecking)
                     }
                 }
 

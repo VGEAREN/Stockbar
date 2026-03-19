@@ -19,16 +19,18 @@ struct ProfitSummaryView: View {
                     }
                 }
                 Spacer()
-                HStack(spacing: 10) {
+                VStack(alignment: .trailing, spacing: 2) {
                     let sym   = appState.displayCurrency.symbol
                     let daily = appState.totalDailyPnL
                     let sign1 = daily >= 0 ? "+" : "-"
-                    Text("日\(sign1)\(sym)\(String(format: "%.2f", abs(daily)))")
+                    let dailyPct = appState.totalDailyPnLPercent
+                    Text("日\(sign1)\(sym)\(String(format: "%.2f", abs(daily))) \(String(format: "%.2f%%", dailyPct))")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(appState.pnlColor(daily))
                     let pnl   = appState.totalPnL
                     let sign2 = pnl >= 0 ? "+" : "-"
-                    Text("浮\(sign2)\(sym)\(String(format: "%.2f", abs(pnl)))")
+                    let pnlPct = appState.totalPnLPercent
+                    Text("浮\(sign2)\(sym)\(String(format: "%.2f", abs(pnl))) \(String(format: "%.2f%%", pnlPct))")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(appState.pnlColor(pnl))
                 }

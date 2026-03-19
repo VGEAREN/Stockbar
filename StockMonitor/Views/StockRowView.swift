@@ -55,9 +55,11 @@ struct StockRowView: View {
                                     .foregroundColor(appState.pnlColor(daily))
                             }
                             if let pnl = stock.pnl(quote: q) {
+                                let pct = stock.pnlPercent(quote: q)
+                                let pctStr = pct.map { String(format: " %.2f%%", $0) } ?? ""
                                 Text(pnl >= 0
-                                     ? "浮+\(String(format: "%.2f", pnl))"
-                                     :  "浮\(String(format: "%.2f", pnl))")
+                                     ? "浮+\(String(format: "%.2f", pnl))\(pctStr)"
+                                     :  "浮\(String(format: "%.2f", pnl))\(pctStr)")
                                     .font(.system(size: 10))
                                     .foregroundColor(appState.pnlColor(pnl))
                             }

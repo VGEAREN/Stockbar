@@ -197,6 +197,23 @@ final class AppState: ObservableObject {
         }.reduce(0, +)
     }
 
+    var totalCost: Double {
+        stocks.compactMap { s -> Double? in
+            guard let cost = s.costPrice, let shares = s.holdingShares else { return nil }
+            return exchangeRates.convert(cost * shares, from: s.market, to: displayCurrency)
+        }.reduce(0, +)
+    }
+
+    var totalPnLPercent: Double {
+        guard totalCost > 0 else { return 0 }
+        return totalPnL / totalCost * 100
+    }
+
+    var totalDailyPnLPercent: Double {
+        guard totalCost > 0 else { return 0 }
+        return totalDailyPnL / totalCost * 100
+    }
+
     var hasPnLData: Bool {
         stocks.contains { $0.costPrice != nil && $0.holdingShares != nil }
     }
