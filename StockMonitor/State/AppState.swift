@@ -161,12 +161,29 @@ final class AppState: ObservableObject {
             let all       = stocks.map(\.id)
             let sinaCodes = all.filter { !$0.hasPrefix("hk") }
             let hkCodes   = all.filter {  $0.hasPrefix("hk") }
-            async let sinaResult  = DataService.fetchSinaQuotes(codes: sinaCodes)
-            async let hkResult    = DataService.fetchTencentHKQuotes(codes: hkCodes)
-            async let ratesResult = CurrencyService.fetchRates()
+
+            let isOvernight = Self.usMarketSession() == "夜盘"
+            let usCodes = isOvernight ? all.filter { $0.hasPrefix("usr_") } : []
+
+            // 所有数据源并行请求
+            async let sinaResult      = DataService.fetchSinaQuotes(codes: sinaCodes)
+            async let hkResult        = DataService.fetchTencentHKQuotes(codes: hkCodes)
+            async let ratesResult     = CurrencyService.fetchRates()
+            async let overnightResult = PythService.fetchOvernightPrices(codes: usCodes)
+
             let (s, h) = try await (sinaResult, hkResult)
-            let rates  = await ratesResult
-            quotes.merge(s) { $1 }
+            let rates     = await ratesResult
+            let overnight = await overnightResult
+
+            // 夜盘时段：清除新浪的盘后旧价格，用夜盘实时价替换
+            var merged = s
+            if isOvernight {
+                for key in merged.keys where key.hasPrefix("usr_") {
+                    merged[key]?.extendedPrice = overnight[key]
+                }
+            }
+
+            quotes.merge(merged) { $1 }
             quotes.merge(h) { $1 }
             exchangeRates  = rates
             lastUpdateTime = Date()
@@ -261,12 +278,24 @@ final class AppState: ObservableObject {
         let comps = cal.dateComponents([.weekday, .hour, .minute], from: now)
         let weekday = comps.weekday ?? 1
         let minutes = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
-        guard weekday >= 2, weekday <= 6 else { return nil }
         switch minutes {
-        case 240..<570:  return "盘前"   // ET 04:00–09:30
-        case 570..<960:  return "盘中"   // ET 09:30–16:00
-        case 960..<1200: return "盘后"   // ET 16:00–20:00
-        default:         return nil      // 夜盘无数据源，不显示
+        case 0..<240:
+            guard weekday >= 3, weekday <= 7 else { return nil }
+            return "夜盘"    // ET 00:00–04:00（跨日，周二夜~周六凌晨）
+        case 240..<570:
+            guard weekday >= 2, weekday <= 6 else { return nil }
+            return "盘前"    // ET 04:00–09:30
+        case 570..<960:
+            guard weekday >= 2, weekday <= 6 else { return nil }
+            return "盘中"    // ET 09:30–16:00
+        case 960..<1200:
+            guard weekday >= 2, weekday <= 6 else { return nil }
+            return "盘后"    // ET 16:00–20:00
+        case 1200..<1440:
+            guard weekday >= 2, weekday <= 6 else { return nil }
+            return "夜盘"    // ET 20:00–24:00
+        default:
+            return nil
         }
     }
 }
