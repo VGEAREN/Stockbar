@@ -5,6 +5,7 @@ struct DropdownView: View {
     @State private var showSettings = false
     @State private var sortByChange = false
     @State private var selectedStock: Stock? = nil
+    @State private var lastSelectedStockId: String? = nil
 
     private var groupedStocks: [(Market, [Stock])] {
         [Market.aStock, .hkStock, .usStock].compactMap { market in
@@ -49,17 +50,29 @@ struct DropdownView: View {
                         .frame(maxWidth: .infinity)
                         .padding()
                 } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(groupedStocks, id: \.0) { market, stocks in
-                                StockGroupView(market: market, stocks: stocks,
-                                               onSelect: { selectedStock = $0 })
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(groupedStocks, id: \.0) { market, stocks in
+                                    StockGroupView(market: market, stocks: stocks,
+                                                   onSelect: {
+                                                       lastSelectedStockId = $0.id
+                                                       selectedStock = $0
+                                                   })
+                                }
+                            }
+                            .padding(.horizontal, 6)
+                        }
+                        .scrollIndicators(.never)
+                        .frame(maxHeight: 520)
+                        .onAppear {
+                            if let id = lastSelectedStockId {
+                                DispatchQueue.main.async {
+                                    proxy.scrollTo(id, anchor: .center)
+                                }
                             }
                         }
-                        .padding(.horizontal, 6)
                     }
-                    .scrollIndicators(.never)
-                    .frame(maxHeight: 520)
                 }
 
                 Divider()

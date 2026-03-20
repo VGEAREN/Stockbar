@@ -31,6 +31,7 @@ struct StockGroupView: View {
                 ForEach(stocks) { stock in
                     StockRowView(stock: stock, quote: appState.quotes[stock.id],
                                  onTap: { onSelect?(stock) })
+                        .id(stock.id)
                 }
             }
         }
