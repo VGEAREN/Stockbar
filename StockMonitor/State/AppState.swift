@@ -276,23 +276,28 @@ final class AppState: ObservableObject {
         cal.timeZone = TimeZone(identifier: "America/New_York")!
         let now   = Date()
         let comps = cal.dateComponents([.weekday, .hour, .minute], from: now)
-        let weekday = comps.weekday ?? 1
-        let minutes = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
-        switch minutes {
+        // Swift Calendar weekday: 1=周日, 2=周一, 3=周二, ..., 6=周五, 7=周六
+        let wd = comps.weekday ?? 1
+        let t  = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+        switch t {
         case 0..<240:
-            guard weekday >= 3, weekday <= 7 else { return nil }
-            return "夜盘"    // ET 00:00–04:00（跨日，周二夜~周六凌晨）
+            // ET 00:00–04:00 凌晨段（前一晚夜盘延续）
+            // 周一凌晨(wd=2)=周日夜盘, 周二~周五凌晨(wd=3~6), 周六凌晨(wd=7)=周五夜盘
+            guard wd >= 2 else { return nil }  // 周日凌晨无交易
+            return "夜盘"
         case 240..<570:
-            guard weekday >= 2, weekday <= 6 else { return nil }
+            guard wd >= 2, wd <= 6 else { return nil }  // 周一~周五
             return "盘前"    // ET 04:00–09:30
         case 570..<960:
-            guard weekday >= 2, weekday <= 6 else { return nil }
+            guard wd >= 2, wd <= 6 else { return nil }
             return "盘中"    // ET 09:30–16:00
         case 960..<1200:
-            guard weekday >= 2, weekday <= 6 else { return nil }
+            guard wd >= 2, wd <= 6 else { return nil }
             return "盘后"    // ET 16:00–20:00
         case 1200..<1440:
-            guard weekday >= 2, weekday <= 6 else { return nil }
+            // ET 20:00–24:00 晚间段
+            // 周日晚(wd=1)=周一夜盘开始, 周一~周五晚(wd=2~6)
+            guard wd >= 1, wd <= 6 else { return nil }  // 仅排除周六晚(wd=7)
             return "夜盘"    // ET 20:00–24:00
         default:
             return nil
