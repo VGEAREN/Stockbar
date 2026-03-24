@@ -3,6 +3,7 @@ import SwiftUI
 struct StockGroupView: View {
     let market: Market
     let stocks: [Stock]
+    var title: String? = nil
     var onSelect: ((Stock) -> Void)? = nil
     @EnvironmentObject var appState: AppState
     @State private var isExpanded = true
@@ -15,7 +16,7 @@ struct StockGroupView: View {
                 HStack(spacing: 4) {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 10, weight: .medium))
-                    Text(market.rawValue)
+                    Text(title ?? market.rawValue)
                         .font(.system(size: 11, weight: .semibold))
                     Text("(\(stocks.count))")
                         .font(.system(size: 11))

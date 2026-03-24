@@ -7,22 +7,48 @@ struct DropdownView: View {
     @State private var selectedStock: Stock? = nil
     @State private var lastSelectedStockId: String? = nil
 
-    private var groupedStocks: [(Market, [Stock])] {
-        [Market.aStock, .hkStock, .usStock].compactMap { market in
-            var s = appState.stocks.filter { $0.market == market }
-            if sortByChange {
-                let rule = appState.config.sortRule
-                let usMode = appState.config.usPriceMode
-                s.sort { a, b in
-                    let qa = appState.quotes[a.id]
-                    let qb = appState.quotes[b.id]
-                    let va = sortValue(quote: qa, market: market, mode: usMode)
-                    let vb = sortValue(quote: qb, market: market, mode: usMode)
-                    return rule == .changeDesc ? va > vb : va < vb
-                }
+    /// 分组数据：(market, stocks, customTitle?)
+    private var groupedStocks: [(Market, [Stock], String?)] {
+        let rule = appState.config.sortRule
+        let usMode = appState.config.usPriceMode
+        let doSort = sortByChange
+
+        func sorted(_ stocks: [Stock], market: Market) -> [Stock] {
+            guard doSort else { return stocks }
+            return stocks.sorted { a, b in
+                let va = sortValue(quote: appState.quotes[a.id], market: market, mode: usMode)
+                let vb = sortValue(quote: appState.quotes[b.id], market: market, mode: usMode)
+                return rule == .changeDesc ? va > vb : va < vb
             }
-            return s.isEmpty ? nil : (market, s)
         }
+
+        var result: [(Market, [Stock], String?)] = []
+
+        // 持仓股单独分组
+        if appState.config.groupHoldings {
+            let holdings = appState.stocks.filter { $0.holdingShares != nil }
+            if !holdings.isEmpty {
+                // 持仓组内按第一只股票的市场类型排序（混合市场）
+                let sortedHoldings = doSort ? holdings.sorted { a, b in
+                    let va = sortValue(quote: appState.quotes[a.id], market: a.market, mode: usMode)
+                    let vb = sortValue(quote: appState.quotes[b.id], market: b.market, mode: usMode)
+                    return rule == .changeDesc ? va > vb : va < vb
+                } : holdings
+                result.append((.aStock, sortedHoldings, "持仓"))
+            }
+            let holdingIds = Set(holdings.map(\.id))
+            for market in [Market.aStock, .hkStock, .usStock] {
+                let s = appState.stocks.filter { $0.market == market && !holdingIds.contains($0.id) }
+                if !s.isEmpty { result.append((market, sorted(s, market: market), nil)) }
+            }
+        } else {
+            for market in [Market.aStock, .hkStock, .usStock] {
+                let s = appState.stocks.filter { $0.market == market }
+                if !s.isEmpty { result.append((market, sorted(s, market: market), nil)) }
+            }
+        }
+
+        return result
     }
 
     private func sortValue(quote: Quote?, market: Market, mode: USPriceMode) -> Double {
@@ -53,8 +79,9 @@ struct DropdownView: View {
                     ScrollViewReader { proxy in
                         ScrollView {
                             VStack(alignment: .leading, spacing: 6) {
-                                ForEach(groupedStocks, id: \.0) { market, stocks in
-                                    StockGroupView(market: market, stocks: stocks,
+                                ForEach(Array(groupedStocks.enumerated()), id: \.offset) { _, group in
+                                    StockGroupView(market: group.0, stocks: group.1,
+                                                   title: group.2,
                                                    onSelect: {
                                                        lastSelectedStockId = $0.id
                                                        selectedStock = $0

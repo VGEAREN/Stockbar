@@ -65,6 +65,7 @@ struct AppSettings {
     var displayCurrency: DisplayCurrency = .cny
     var sortRule: SortRule               = .changeDesc
     var usPriceMode: USPriceMode         = .sessionPrice
+    var groupHoldings: Bool              = false
 
     static let validRefreshIntervals = [3, 5, 10, 30]
 
@@ -75,7 +76,7 @@ struct AppSettings {
 // MARK: - Codable（容错：缺失字段使用默认值）
 extension AppSettings: Codable {
     enum CodingKeys: String, CodingKey {
-        case statusBarStockId, refreshInterval, colorScheme, displayCurrency, sortRule, usPriceMode
+        case statusBarStockId, refreshInterval, colorScheme, displayCurrency, sortRule, usPriceMode, groupHoldings
     }
 
     init(from decoder: Decoder) throws {
@@ -86,5 +87,6 @@ extension AppSettings: Codable {
         displayCurrency  = (try? c.decodeIfPresent(DisplayCurrency.self, forKey: .displayCurrency))   ?? .cny
         sortRule         = (try? c.decodeIfPresent(SortRule.self,         forKey: .sortRule))           ?? .changeDesc
         usPriceMode      = (try? c.decodeIfPresent(USPriceMode.self,     forKey: .usPriceMode))        ?? .sessionPrice
+        groupHoldings    = (try? c.decodeIfPresent(Bool.self,            forKey: .groupHoldings))      ?? false
     }
 }

@@ -54,6 +54,14 @@ struct SettingsView: View {
                     }.pickerStyle(.menu)
                 }
 
+                // 持仓股分组
+                section("持仓股展示") {
+                    Toggle("持仓股单独分组置顶", isOn: Binding(
+                        get: { appState.config.groupHoldings },
+                        set: { appState.config.groupHoldings = $0 }
+                    ))
+                }
+
                 // 排序规则
                 section("排序规则") {
                     Picker("", selection: Binding(
