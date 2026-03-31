@@ -5,7 +5,6 @@ struct DropdownView: View {
     @State private var showSettings = false
     @State private var sortByChange = false
     @State private var selectedStock: Stock? = nil
-    @State private var lastSelectedStockId: String? = nil
 
     /// 分组数据：(market, stocks, customTitle?)
     private var groupedStocks: [(Market, [Stock], String?)] {
@@ -51,6 +50,21 @@ struct DropdownView: View {
         return result
     }
 
+    private var stockListView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(groupedStocks.enumerated()), id: \.offset) { _, group in
+                    StockGroupView(market: group.0, stocks: group.1,
+                                   title: group.2,
+                                   onSelect: { selectedStock = $0 })
+                }
+            }
+            .padding(.horizontal, 6)
+        }
+        .scrollIndicators(.never)
+        .frame(maxHeight: 520)
+    }
+
     private func sortValue(quote: Quote?, market: Market, mode: USPriceMode) -> Double {
         guard let q = quote else { return -Double.infinity }
         if market == .usStock && mode == .sessionPrice, let ext = q.extendedPrice {
@@ -67,37 +81,18 @@ struct DropdownView: View {
             } else {
                 ProfitSummaryView()
 
-                if let stock = selectedStock {
-                    StockChartView(stock: stock, onClose: { selectedStock = nil })
-                } else if appState.stocks.isEmpty {
+                if appState.stocks.isEmpty {
                     Text("暂无股票，点击设置添加")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
                         .padding()
                 } else {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 6) {
-                                ForEach(Array(groupedStocks.enumerated()), id: \.offset) { _, group in
-                                    StockGroupView(market: group.0, stocks: group.1,
-                                                   title: group.2,
-                                                   onSelect: {
-                                                       lastSelectedStockId = $0.id
-                                                       selectedStock = $0
-                                                   })
-                                }
-                            }
-                            .padding(.horizontal, 6)
-                        }
-                        .scrollIndicators(.never)
-                        .frame(maxHeight: 520)
-                        .onAppear {
-                            if let id = lastSelectedStockId {
-                                DispatchQueue.main.async {
-                                    proxy.scrollTo(id, anchor: .center)
-                                }
-                            }
+                    ZStack {
+                        stockListView
+                            .opacity(selectedStock == nil ? 1 : 0)
+                        if let stock = selectedStock {
+                            StockChartView(stock: stock, onClose: { selectedStock = nil })
                         }
                     }
                 }
