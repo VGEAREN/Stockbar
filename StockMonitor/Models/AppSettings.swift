@@ -66,6 +66,7 @@ struct AppSettings {
     var sortRule: SortRule               = .changeDesc
     var usPriceMode: USPriceMode         = .sessionPrice
     var groupHoldings: Bool              = false
+    var activeWatchlistId: String?       = nil    // nil = 真实持仓
 
     static let validRefreshIntervals = [3, 5, 10, 30]
 
@@ -76,17 +77,18 @@ struct AppSettings {
 // MARK: - Codable（容错：缺失字段使用默认值）
 extension AppSettings: Codable {
     enum CodingKeys: String, CodingKey {
-        case statusBarStockId, refreshInterval, colorScheme, displayCurrency, sortRule, usPriceMode, groupHoldings
+        case statusBarStockId, refreshInterval, colorScheme, displayCurrency, sortRule, usPriceMode, groupHoldings, activeWatchlistId
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        statusBarStockId = (try? c.decodeIfPresent(String.self,          forKey: .statusBarStockId))  ?? ""
-        refreshInterval  = (try? c.decodeIfPresent(Int.self,             forKey: .refreshInterval))   ?? 5
-        colorScheme      = (try? c.decodeIfPresent(ColorTheme.self,      forKey: .colorScheme))       ?? .chinese
-        displayCurrency  = (try? c.decodeIfPresent(DisplayCurrency.self, forKey: .displayCurrency))   ?? .cny
-        sortRule         = (try? c.decodeIfPresent(SortRule.self,         forKey: .sortRule))           ?? .changeDesc
-        usPriceMode      = (try? c.decodeIfPresent(USPriceMode.self,     forKey: .usPriceMode))        ?? .sessionPrice
-        groupHoldings    = (try? c.decodeIfPresent(Bool.self,            forKey: .groupHoldings))      ?? false
+        statusBarStockId   = (try? c.decodeIfPresent(String.self,          forKey: .statusBarStockId))    ?? ""
+        refreshInterval    = (try? c.decodeIfPresent(Int.self,             forKey: .refreshInterval))     ?? 5
+        colorScheme        = (try? c.decodeIfPresent(ColorTheme.self,      forKey: .colorScheme))         ?? .chinese
+        displayCurrency    = (try? c.decodeIfPresent(DisplayCurrency.self, forKey: .displayCurrency))     ?? .cny
+        sortRule           = (try? c.decodeIfPresent(SortRule.self,         forKey: .sortRule))            ?? .changeDesc
+        usPriceMode        = (try? c.decodeIfPresent(USPriceMode.self,     forKey: .usPriceMode))         ?? .sessionPrice
+        groupHoldings      = (try? c.decodeIfPresent(Bool.self,            forKey: .groupHoldings))       ?? false
+        activeWatchlistId  = try? c.decodeIfPresent(String.self,           forKey: .activeWatchlistId)
     }
 }

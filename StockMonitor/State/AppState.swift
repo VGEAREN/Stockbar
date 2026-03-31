@@ -18,6 +18,12 @@ final class AppState: ObservableObject {
         didSet { saveStocks(stocks) }
     }
 
+    // MARK: - 持久化（watchlists.json）
+
+    @Published var watchlists: [Watchlist] = [] {
+        didSet { saveWatchlists(watchlists) }
+    }
+
     // MARK: - 实时状态
 
     @Published var quotes: [String: Quote]      = [:]
@@ -35,8 +41,9 @@ final class AppState: ObservableObject {
         return dir
     }
 
-    private static var stocksFileURL:   URL { appSupportDir.appendingPathComponent("stocks.json")   }
-    private static var settingsFileURL: URL { appSupportDir.appendingPathComponent("settings.json") }
+    private static var stocksFileURL:     URL { appSupportDir.appendingPathComponent("stocks.json")     }
+    private static var settingsFileURL:   URL { appSupportDir.appendingPathComponent("settings.json")   }
+    private static var watchlistsFileURL: URL { appSupportDir.appendingPathComponent("watchlists.json") }
 
     // MARK: - 加载
 
@@ -52,6 +59,12 @@ final class AppState: ObservableObject {
         return val
     }
 
+    private static func loadWatchlists() -> [Watchlist] {
+        guard let data = try? Data(contentsOf: watchlistsFileURL),
+              let val  = try? JSONDecoder().decode([Watchlist].self, from: data) else { return [] }
+        return val
+    }
+
     // MARK: - 保存
 
     private func saveStocks(_ stocks: [Stock]) {
@@ -63,6 +76,13 @@ final class AppState: ObservableObject {
         } catch {
             logToFile("saveStocks: failed to write stocks.json: \(error)")
         }
+    }
+
+    private func saveWatchlists(_ list: [Watchlist]) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        guard let data = try? encoder.encode(list) else { return }
+        try? data.write(to: Self.watchlistsFileURL, options: .atomic)
     }
 
     private func saveSettings(_ settings: AppSettings) {
@@ -124,8 +144,9 @@ final class AppState: ObservableObject {
     init() {
         appLogger.info("AppState init start")
         logToFile("AppState init start")
-        _stocks = Published(wrappedValue: Self.loadStocks())
-        _config = Published(wrappedValue: Self.loadSettings())
+        _stocks     = Published(wrappedValue: Self.loadStocks())
+        _config     = Published(wrappedValue: Self.loadSettings())
+        _watchlists = Published(wrappedValue: Self.loadWatchlists())
         appLogger.info("AppState stocks loaded: \(self.stocks.count)")
         logToFile("AppState stocks loaded: \(self.stocks.count)")
         setupScheduler()
@@ -206,25 +227,67 @@ final class AppState: ObservableObject {
         if changed { stocks = updated }
     }
 
+    // MARK: - 观察仓
+
+    var activeWatchlist: Watchlist? {
+        guard let id = config.activeWatchlistId else { return nil }
+        return watchlists.first(where: { $0.id == id })
+    }
+
+    var activeWatchlistName: String {
+        activeWatchlist?.name ?? "真实持仓"
+    }
+
+    func effectiveCostPrice(for stock: Stock) -> Double? {
+        if let wl = activeWatchlist, let entry = wl.entries[stock.id] {
+            return entry.costPrice
+        }
+        return stock.costPrice
+    }
+
+    func effectiveShares(for stock: Stock) -> Double? {
+        if let wl = activeWatchlist, let entry = wl.entries[stock.id] {
+            return entry.holdingShares
+        }
+        return stock.holdingShares
+    }
+
+    func effectivePnl(stock: Stock, quote: Quote) -> Double? {
+        guard let cost = effectiveCostPrice(for: stock),
+              let shares = effectiveShares(for: stock) else { return nil }
+        return (quote.price - cost) * shares
+    }
+
+    func effectiveDailyPnl(stock: Stock, quote: Quote) -> Double? {
+        guard let shares = effectiveShares(for: stock) else { return nil }
+        return quote.change * shares
+    }
+
+    func effectivePnlPercent(stock: Stock, quote: Quote) -> Double? {
+        guard let cost = effectiveCostPrice(for: stock), cost > 0 else { return nil }
+        return (quote.price - cost) / cost * 100
+    }
+
     // MARK: - 持仓汇总
 
     var totalPnL: Double {
         stocks.compactMap { s -> Double? in
-            guard let q = quotes[s.id], let pnl = s.pnl(quote: q) else { return nil }
+            guard let q = quotes[s.id], let pnl = effectivePnl(stock: s, quote: q) else { return nil }
             return exchangeRates.convert(pnl, from: s.market, to: displayCurrency)
         }.reduce(0, +)
     }
 
     var totalDailyPnL: Double {
         stocks.compactMap { s -> Double? in
-            guard let q = quotes[s.id], let pnl = s.dailyPnl(quote: q) else { return nil }
+            guard let q = quotes[s.id], let pnl = effectiveDailyPnl(stock: s, quote: q) else { return nil }
             return exchangeRates.convert(pnl, from: s.market, to: displayCurrency)
         }.reduce(0, +)
     }
 
     var totalCost: Double {
         stocks.compactMap { s -> Double? in
-            guard let cost = s.costPrice, let shares = s.holdingShares else { return nil }
+            guard let cost = effectiveCostPrice(for: s),
+                  let shares = effectiveShares(for: s) else { return nil }
             return exchangeRates.convert(cost * shares, from: s.market, to: displayCurrency)
         }.reduce(0, +)
     }
@@ -240,7 +303,7 @@ final class AppState: ObservableObject {
     }
 
     var hasPnLData: Bool {
-        stocks.contains { $0.costPrice != nil && $0.holdingShares != nil }
+        stocks.contains { effectiveCostPrice(for: $0) != nil && effectiveShares(for: $0) != nil }
     }
 
     // MARK: - 状态栏

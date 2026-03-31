@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var editingStock: Stock?
     @State private var editCost      = ""
     @State private var editShares    = ""
+    @State private var newWatchlistName = ""
 
     struct SearchResult: Identifiable {
         let id: String; let name: String; let market: Market
@@ -60,6 +61,59 @@ struct SettingsView: View {
                         get: { appState.config.groupHoldings },
                         set: { appState.config.groupHoldings = $0 }
                     ))
+                    .padding(.leading, 8)
+                }
+
+                // 观察仓管理
+                section("观察仓") {
+                    // 当前选择
+                    Picker("", selection: Binding(
+                        get: { appState.config.activeWatchlistId ?? "__real__" },
+                        set: { appState.config.activeWatchlistId = $0 == "__real__" ? nil : $0 }
+                    )) {
+                        Text("真实持仓").tag("__real__")
+                        ForEach(appState.watchlists) { wl in
+                            Text(wl.name).tag(wl.id)
+                        }
+                    }.pickerStyle(.menu)
+
+                    // 新建
+                    HStack(spacing: 6) {
+                        TextField("新观察仓名称", text: $newWatchlistName)
+                            .textFieldStyle(.roundedBorder)
+                        Button("新建") {
+                            let name = newWatchlistName.trimmingCharacters(in: .whitespaces)
+                            guard !name.isEmpty else { return }
+                            appState.watchlists.append(Watchlist(name: name))
+                            newWatchlistName = ""
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    }
+                    .padding(.leading, 8)
+
+                    // 列表（删除）
+                    if !appState.watchlists.isEmpty {
+                        ForEach(appState.watchlists) { wl in
+                            HStack {
+                                Text(wl.name).font(.system(size: 12))
+                                Spacer()
+                                if appState.config.activeWatchlistId == wl.id {
+                                    Text("当前").font(.caption).foregroundColor(.accentColor)
+                                }
+                                Button {
+                                    appState.watchlists.removeAll { $0.id == wl.id }
+                                    if appState.config.activeWatchlistId == wl.id {
+                                        appState.config.activeWatchlistId = nil
+                                    }
+                                } label: {
+                                    Image(systemName: "xmark").font(.system(size: 11)).foregroundColor(.red)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
                 }
 
                 // 排序规则
@@ -243,7 +297,8 @@ struct SettingsView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(stock.name).font(.system(size: 12))
-                if let c = stock.costPrice, let sh = stock.holdingShares {
+                if let c = appState.effectiveCostPrice(for: stock),
+                   let sh = appState.effectiveShares(for: stock) {
                     Text("成本 \(String(format: "%.3f", c)) × \(String(format: "%.0f", sh)) 股")
                         .font(.caption).foregroundColor(.secondary)
                 } else {
@@ -253,8 +308,8 @@ struct SettingsView: View {
             Spacer()
             Button {
                 editingStock = stock
-                editCost     = stock.costPrice.map    { String($0) } ?? ""
-                editShares   = stock.holdingShares.map { String(Int($0)) } ?? ""
+                editCost     = appState.effectiveCostPrice(for: stock).map { String($0) } ?? ""
+                editShares   = appState.effectiveShares(for: stock).map { String(Int($0)) } ?? ""
             } label: { Image(systemName: "pencil").font(.system(size: 11)) }
             .buttonStyle(.plain)
 
@@ -274,7 +329,11 @@ struct SettingsView: View {
                 Button { editingStock = nil } label: {
                     Image(systemName: "chevron.left")
                 }.buttonStyle(.plain)
-                Text("编辑 \(stock.name)").font(.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("编辑 \(stock.name)").font(.headline)
+                    Text(appState.activeWatchlistName)
+                        .font(.caption).foregroundColor(.accentColor)
+                }
             }
             Divider()
             HStack {
@@ -288,11 +347,24 @@ struct SettingsView: View {
             HStack {
                 Button("取消") { editingStock = nil }.buttonStyle(.bordered)
                 Button("保存") {
-                    if let idx = appState.stocks.firstIndex(where: { $0.id == stock.id }) {
-                        var updated = appState.stocks
-                        updated[idx].costPrice     = Double(editCost)
-                        updated[idx].holdingShares = Double(editShares)
-                        appState.stocks = updated
+                    let cost   = Double(editCost)
+                    let shares = Double(editShares)
+                    if let wlId = appState.config.activeWatchlistId,
+                       let wlIdx = appState.watchlists.firstIndex(where: { $0.id == wlId }) {
+                        // 写入观察仓
+                        if let c = cost, let s = shares {
+                            appState.watchlists[wlIdx].entries[stock.id] = WatchlistEntry(costPrice: c, holdingShares: s)
+                        } else {
+                            appState.watchlists[wlIdx].entries.removeValue(forKey: stock.id)
+                        }
+                    } else {
+                        // 写入真实持仓
+                        if let idx = appState.stocks.firstIndex(where: { $0.id == stock.id }) {
+                            var updated = appState.stocks
+                            updated[idx].costPrice     = cost
+                            updated[idx].holdingShares = shares
+                            appState.stocks = updated
+                        }
                     }
                     editingStock = nil
                 }.buttonStyle(.borderedProminent)

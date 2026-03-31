@@ -11,7 +11,8 @@ struct ProfitSummaryView: View {
         if appState.hasPnLData {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("持仓盈亏").font(.system(size: 10)).foregroundColor(.secondary)
+                    Text(appState.activeWatchlistName == "真实持仓" ? "持仓盈亏" : "[\(appState.activeWatchlistName)]盈亏")
+                        .font(.system(size: 10)).foregroundColor(.secondary)
                     if let t = appState.lastUpdateTime {
                         Text("更新：\(Self.timeFmt.string(from: t))\(appState.hasError ? " ⚠" : "")")
                             .font(.system(size: 9))

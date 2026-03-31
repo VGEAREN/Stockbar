@@ -25,7 +25,7 @@ struct DropdownView: View {
 
         // 持仓股单独分组
         if appState.config.groupHoldings {
-            let holdings = appState.stocks.filter { $0.holdingShares != nil }
+            let holdings = appState.stocks.filter { appState.effectiveShares(for: $0) != nil }
             if !holdings.isEmpty {
                 // 持仓组内按第一只股票的市场类型排序（混合市场）
                 let sortedHoldings = doSort ? holdings.sorted { a, b in

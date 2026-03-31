@@ -41,21 +41,21 @@ struct StockRowView: View {
                                     : Color(appState.config.downColorName)
                             )
                     }
-                    if stock.holdingShares == nil {
+                    if appState.effectiveShares(for: stock) == nil {
                         Text("未持仓")
                             .font(.system(size: 9))
                             .foregroundColor(.secondary)
                     } else {
                         HStack(spacing: 4) {
-                            if let daily = stock.dailyPnl(quote: q) {
+                            if let daily = appState.effectiveDailyPnl(stock: stock, quote: q) {
                                 Text(daily >= 0
                                      ? "日+\(String(format: "%.2f", daily))"
                                      :  "日\(String(format: "%.2f", daily))")
                                     .font(.system(size: 10))
                                     .foregroundColor(appState.pnlColor(daily))
                             }
-                            if let pnl = stock.pnl(quote: q) {
-                                let pct = stock.pnlPercent(quote: q)
+                            if let pnl = appState.effectivePnl(stock: stock, quote: q) {
+                                let pct = appState.effectivePnlPercent(stock: stock, quote: q)
                                 let pctStr = pct.map { String(format: " %.2f%%", $0) } ?? ""
                                 Text(pnl >= 0
                                      ? "浮+\(String(format: "%.2f", pnl))\(pctStr)"
