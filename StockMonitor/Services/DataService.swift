@@ -102,15 +102,15 @@ final class DataService {
             let fields = String(line[valStart.upperBound..<valEnd])
                 .components(separatedBy: "~")
 
-            // fields: 0=market, 1=名称, 2=code, 3=现价, 4=昨收, ..., 29=更新时间
-            guard fields.count > 29,
+            // fields: 0=market, 1=名称, 2=code, 3=现价, 4=昨收, ..., 29=成交量, 30=更新时间
+            guard fields.count > 30,
                   let price     = Double(fields[3]),
                   let yestClose = Double(fields[4]),
                   price > 0, yestClose > 0 else { continue }
             let change        = price - yestClose
             let changePercent = change / yestClose * 100
             result[rawCode] = Quote(code: rawCode, name: fields[1], price: price, change: change,
-                                    changePercent: changePercent, updateTime: fields[29])
+                                    changePercent: changePercent, updateTime: fields[30])
         }
         return result
     }
