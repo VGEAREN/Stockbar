@@ -87,14 +87,10 @@ struct DropdownView: View {
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
                         .padding()
+                } else if let stock = selectedStock {
+                    StockChartView(stock: stock, onClose: { selectedStock = nil })
                 } else {
-                    ZStack {
-                        stockListView
-                            .opacity(selectedStock == nil ? 1 : 0)
-                        if let stock = selectedStock {
-                            StockChartView(stock: stock, onClose: { selectedStock = nil })
-                        }
-                    }
+                    stockListView
                 }
 
                 Divider()

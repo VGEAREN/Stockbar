@@ -241,7 +241,12 @@ struct StockChartView: View {
         }
     }
 
-    private func fmt(_ v: Double) -> String { String(format: "%.3f", v) }
+    private func fmt(_ v: Double) -> String {
+        // 韩元等大数字（如 284000）用整数显示；港币/美元中等数字 2 位小数；小数价 3 位
+        if v >= 1000 { return String(format: "%.0f", v) }
+        if v >= 10   { return String(format: "%.2f", v) }
+        return String(format: "%.3f", v)
+    }
 
     // MARK: - 数据加载
 
