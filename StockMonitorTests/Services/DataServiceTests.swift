@@ -32,7 +32,8 @@ final class DataServiceTests: XCTestCase {
         """
         let quotes = DataService.parseSinaResponse(raw)
         XCTAssertEqual(quotes.count, 2)
-        XCTAssertNotNil(quotes["159941"])
+        XCTAssertNotNil(quotes["sh600000"])
+        XCTAssertNotNil(quotes["sz000001"])
     }
 
     func test_parseSina_emptyResponse() {
