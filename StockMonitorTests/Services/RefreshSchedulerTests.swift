@@ -26,11 +26,11 @@ final class RefreshSchedulerTests: XCTestCase {
         XCTAssertTrue(RefreshScheduler.isTradingHour(at: d))
     }
 
-    // 午休不交易
-    func test_aStock_lunchBreak_notTrading() {
+    // A股午休时段：北京 12:00 是美股夜盘时段（KR市/夜盘覆盖），所以仍刷新
+    // 自 v1.1.7 起 isTradingHour 在工作日内全天返回 true（美股四时段 + 夜盘覆盖 24h）
+    func test_aStock_lunchBreak_isTrading_dueToUSOvernight() {
         let d = makeDate(weekday: 2, hour: 12, minute: 0)  // 周一 12:00
-        // 12:00 不在 A股/港股开市段，美股也未开盘 → false
-        XCTAssertFalse(RefreshScheduler.isTradingHour(at: d))
+        XCTAssertTrue(RefreshScheduler.isTradingHour(at: d))
     }
 
     // 周末不交易
@@ -53,9 +53,9 @@ final class RefreshSchedulerTests: XCTestCase {
         XCTAssertTrue(RefreshScheduler.isTradingHour(at: d))
     }
 
-    // 非交易时间（下午收市后、美股未开盘前）
-    func test_afterClose_notTrading() {
+    // A股收市后：北京 16:30 是美股盘前时段，仍刷新
+    func test_afterClose_isTrading_dueToUSPreMarket() {
         let d = makeDate(weekday: 2, hour: 16, minute: 30) // 周一 16:30
-        XCTAssertFalse(RefreshScheduler.isTradingHour(at: d))
+        XCTAssertTrue(RefreshScheduler.isTradingHour(at: d))
     }
 }
