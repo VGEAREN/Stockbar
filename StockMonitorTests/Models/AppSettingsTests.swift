@@ -4,20 +4,23 @@ import XCTest
 final class AppSettingsTests: XCTestCase {
 
     func test_chinese_upIsRed() {
-        let s = AppSettings(colorScheme: .chinese, refreshInterval: 5, statusBarStockId: nil)
+        var s = AppSettings()
+        s.colorScheme = .chinese
         XCTAssertEqual(s.upColorName,   "upRed")
         XCTAssertEqual(s.downColorName, "downGreen")
     }
 
     func test_western_upIsGreen() {
-        let s = AppSettings(colorScheme: .western, refreshInterval: 5, statusBarStockId: nil)
+        var s = AppSettings()
+        s.colorScheme = .western
         XCTAssertEqual(s.upColorName,   "upGreen")
         XCTAssertEqual(s.downColorName, "downRed")
     }
 
     func test_validRefreshIntervals() {
         for interval in AppSettings.validRefreshIntervals {
-            let s = AppSettings(colorScheme: .chinese, refreshInterval: interval, statusBarStockId: nil)
+            var s = AppSettings()
+            s.refreshInterval = interval
             XCTAssertEqual(s.refreshInterval, interval)
         }
     }
