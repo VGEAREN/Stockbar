@@ -217,7 +217,7 @@ struct SettingsView: View {
                 // 添加股票
                 section("添加股票") {
                     HStack {
-                        TextField("代码或名称（回车搜索）", text: $searchText)
+                        TextField("代码 / 名称 / Samsung / 005930.ks", text: $searchText)
                             .textFieldStyle(.roundedBorder)
                             .onSubmit { search() }
                         if isSearching {
@@ -385,6 +385,11 @@ struct SettingsView: View {
 
     /// 腾讯代理搜索（JSON，直接返回中文名，A股+港股最可靠）
     private func fetchSuggestions(_ keyword: String) async -> [SearchResult] {
+        // 韩股关键字：直接走 Yahoo 搜索（腾讯/新浪不覆盖韩股）
+        if looksKorean(keyword) {
+            let kr = await yahooKoreanSearch(keyword)
+            if !kr.isEmpty { return kr }
+        }
         guard let encoded = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "https://proxy.finance.qq.com/ifzqgtimg/appstock/smartbox/search/get?q=\(encoded)"),
               let (data, _) = try? await URLSession.shared.data(from: url),
@@ -410,7 +415,46 @@ struct SettingsView: View {
             default: return nil
             }
         }
-        return results.isEmpty ? directResult(for: keyword) : results
+        if results.isEmpty {
+            // 退路：Yahoo 韩股搜索 → 代码兜底
+            let yahoo = await yahooKoreanSearch(keyword)
+            if !yahoo.isEmpty { return yahoo }
+            return directResult(for: keyword)
+        }
+        return results
+    }
+
+    /// 关键字看起来像韩股查询：6位代码+后缀、韩文字母（Hangul）、或带 .ks/.kq 后缀
+    private func looksKorean(_ s: String) -> Bool {
+        let k = s.trimmingCharacters(in: .whitespaces).lowercased()
+        if k.hasSuffix(".ks") || k.hasSuffix(".kq") { return true }
+        if k.hasPrefix("kr_") { return true }
+        // 含 Hangul（U+AC00–U+D7AF）
+        if s.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7AF }) { return true }
+        return false
+    }
+
+    /// Yahoo /v1/finance/search — 仅返回韩股（KSC / KOE 两种 exchange）
+    private func yahooKoreanSearch(_ keyword: String) async -> [SearchResult] {
+        guard let encoded = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://query1.finance.yahoo.com/v1/finance/search?q=\(encoded)&quotesCount=10") else {
+            return []
+        }
+        var req = URLRequest(url: url)
+        req.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        guard let (data, _) = try? await URLSession.shared.data(for: req),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let quotes = root["quotes"] as? [[String: Any]] else { return [] }
+        return quotes.compactMap { q -> SearchResult? in
+            guard (q["quoteType"] as? String) == "EQUITY",
+                  let symbol = q["symbol"] as? String else { return nil }
+            // 韩股 symbol 以 .KS / .KQ 结尾
+            let upper = symbol.uppercased()
+            guard upper.hasSuffix(".KS") || upper.hasSuffix(".KQ") else { return nil }
+            let id = KoreanStockID.fromYahooSymbol(symbol)
+            let name = (q["shortname"] as? String) ?? (q["longname"] as? String) ?? symbol
+            return SearchResult(id: id, name: name, market: .krStock)
+        }
     }
 
     /// 新浪 suggest 兜底（主要覆盖美股/期货等腾讯接口不返回的品种）
@@ -456,6 +500,13 @@ struct SettingsView: View {
         }
         if k.hasPrefix("usr_") {
             return [SearchResult(id: k, name: k.uppercased(), market: .usStock)]
+        }
+        // 韩股：kr_005930.ks / 005930.ks / 005930.kq 形式
+        if k.hasPrefix("kr_") {
+            return [SearchResult(id: k, name: k.uppercased(), market: .krStock)]
+        }
+        if k.hasSuffix(".ks") || k.hasSuffix(".kq") {
+            return [SearchResult(id: "kr_\(k)", name: k.uppercased(), market: .krStock)]
         }
         // 港股：4-5位纯数字，补齐5位前导零
         if k.allSatisfy(\.isNumber), k.count >= 4, k.count <= 5 {

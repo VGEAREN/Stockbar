@@ -36,12 +36,12 @@ struct DropdownView: View {
                 result.append((.aStock, sortedHoldings, "持仓"))
             }
             let holdingIds = Set(holdings.map(\.id))
-            for market in [Market.aStock, .hkStock, .usStock] {
+            for market in [Market.aStock, .hkStock, .usStock, .krStock] {
                 let s = appState.stocks.filter { $0.market == market && !holdingIds.contains($0.id) }
                 if !s.isEmpty { result.append((market, sorted(s, market: market), nil)) }
             }
         } else {
-            for market in [Market.aStock, .hkStock, .usStock] {
+            for market in [Market.aStock, .hkStock, .usStock, .krStock] {
                 let s = appState.stocks.filter { $0.market == market }
                 if !s.isEmpty { result.append((market, sorted(s, market: market), nil)) }
             }
