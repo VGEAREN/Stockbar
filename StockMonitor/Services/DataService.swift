@@ -86,6 +86,65 @@ final class DataService {
         return parseTencentResponse(StringDecoding.decodeGBK(data))
     }
 
+    // MARK: - Yahoo Finance（韩股）
+
+    /// 从 Yahoo `/v8/finance/chart/<symbol>` 响应 meta 段解析 Quote。
+    /// 接口对每只股票各请求一次（v7 batch quote 已被 Yahoo 401 封禁）。
+    static func parseKoreanChartMeta(_ data: Data, id: String) -> Quote? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let chart = root["chart"] as? [String: Any],
+              let results = chart["result"] as? [[String: Any]],
+              let result = results.first,
+              let meta = result["meta"] as? [String: Any] else { return nil }
+
+        let price    = (meta["regularMarketPrice"] as? Double) ?? 0
+        let prev     = (meta["chartPreviousClose"] as? Double)
+                    ?? (meta["previousClose"]     as? Double) ?? 0
+        guard price > 0, prev > 0 else { return nil }
+
+        let change = price - prev
+        let pct    = change / prev * 100
+        let updateTime: String = {
+            guard let ts = meta["regularMarketTime"] as? Double, ts > 0 else { return "" }
+            let fmt = DateFormatter()
+            fmt.timeZone = TimeZone(identifier: "Asia/Seoul")
+            fmt.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            return fmt.string(from: Date(timeIntervalSince1970: ts))
+        }()
+
+        return Quote(code: id, name: "", price: price, change: change,
+                     changePercent: pct, updateTime: updateTime)
+    }
+
+    /// 并发拉取韩股报价。`ids` 为 Stockbar 内部 ID（如 `kr_005930.ks`）。
+    /// 单只失败不影响其它；返回成功解析的 quotes 字典。
+    static func fetchKoreanQuotes(ids: [String]) async -> [String: Quote] {
+        guard !ids.isEmpty else { return [:] }
+        return await withTaskGroup(of: (String, Quote?).self) { group in
+            for id in ids {
+                guard let symbol = KoreanStockID.toYahooSymbol(id) else { continue }
+                group.addTask {
+                    guard let url = URL(string: "https://query1.finance.yahoo.com/v8/finance/chart/\(symbol)?interval=1m&range=1d") else {
+                        return (id, nil)
+                    }
+                    var req = URLRequest(url: url)
+                    req.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+                    guard let (data, _) = try? await URLSession.shared.data(for: req) else {
+                        return (id, nil)
+                    }
+                    return (id, parseKoreanChartMeta(data, id: id))
+                }
+            }
+            var out: [String: Quote] = [:]
+            for await (id, q) in group {
+                if let q { out[id] = q }
+            }
+            return out
+        }
+    }
+
+    // MARK: - 腾讯证券（港股）— parseTencentResponse 入口
+
     /// 解析腾讯港股响应字符串
     static func parseTencentResponse(_ body: String) -> [String: Quote] {
         var result: [String: Quote] = [:]

@@ -1,0 +1,17 @@
+{
+  "chart": {
+    "result": [{
+      "meta": {
+        "symbol": "999999.KS",
+        "regularMarketPrice": null,
+        "chartPreviousClose": null,
+        "currency": "KRW",
+        "exchangeName": "KSC",
+        "timezone": "KST"
+      },
+      "timestamp": [],
+      "indicators": { "quote": [{ "close": [] }] }
+    }],
+    "error": null
+  }
+}
