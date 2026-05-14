@@ -180,8 +180,9 @@ final class AppState: ObservableObject {
         hasError  = false
         do {
             let all       = stocks.map(\.id)
-            let sinaCodes = all.filter { !$0.hasPrefix("hk") }
+            let sinaCodes = all.filter { !$0.hasPrefix("hk") && !KoreanStockID.isKorean($0) }
             let hkCodes   = all.filter {  $0.hasPrefix("hk") }
+            let krIds     = all.filter {  KoreanStockID.isKorean($0) }
 
             let isOvernight = Self.usMarketSession() == "夜盘"
             let usCodes = isOvernight ? all.filter { $0.hasPrefix("usr_") } : []
@@ -189,10 +190,12 @@ final class AppState: ObservableObject {
             // 所有数据源并行请求
             async let sinaResult      = DataService.fetchSinaQuotes(codes: sinaCodes)
             async let hkResult        = DataService.fetchTencentHKQuotes(codes: hkCodes)
+            async let krResult        = DataService.fetchKoreanQuotes(ids: krIds)
             async let ratesResult     = CurrencyService.fetchRates()
             async let overnightResult = PythService.fetchOvernightPrices(codes: usCodes)
 
             let (s, h) = try await (sinaResult, hkResult)
+            let kr        = await krResult
             let rates     = await ratesResult
             let overnight = await overnightResult
 
@@ -205,7 +208,8 @@ final class AppState: ObservableObject {
             }
 
             quotes.merge(merged) { $1 }
-            quotes.merge(h) { $1 }
+            quotes.merge(h)  { $1 }
+            quotes.merge(kr) { $1 }
             exchangeRates  = rates
             lastUpdateTime = Date()
             syncStockNamesFromQuotes()
@@ -332,6 +336,22 @@ final class AppState: ObservableObject {
         if pnl > 0 { return Color(config.upColorName) }
         if pnl < 0 { return Color(config.downColorName) }
         return .secondary
+    }
+
+    // MARK: - 韩股交易时段
+
+    /// 韩股交易时段：返回 "盘中" 或 nil（非交易时段 / 周末）。
+    /// KST 固定 UTC+9，无夏令时。
+    nonisolated static func koreanMarketSession(at now: Date = Date()) -> String? {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Seoul")!
+        let comps = cal.dateComponents([.weekday, .hour, .minute], from: now)
+        let wd = comps.weekday ?? 1
+        // Swift Calendar weekday: 1=周日, 2=周一, ..., 6=周五, 7=周六
+        guard wd >= 2 && wd <= 6 else { return nil }
+        let t = (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+        if t >= 9 * 60 && t <= 15 * 60 + 30 { return "盘中" }
+        return nil
     }
 
     // MARK: - 美股交易时段
