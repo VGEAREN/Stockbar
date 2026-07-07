@@ -10,6 +10,12 @@ struct VolatilityAlertCandidate: Equatable {
     let threshold: Double
 }
 
+struct IntradayChartSnapshot {
+    let points: [MinutePoint]
+    let preClose: Double
+    let loadedAt: Date
+}
+
 @MainActor
 final class AppState: ObservableObject {
 
@@ -41,6 +47,7 @@ final class AppState: ObservableObject {
     @Published var isLoading: Bool              = false
     @Published var lastUpdateTime: Date?        = nil
     @Published var hasError: Bool               = false
+    @Published private(set) var intradayCharts: [String: IntradayChartSnapshot] = [:]
     @Published private var clockNow: Date       = Date()
 
     // MARK: - 文件路径
@@ -167,6 +174,10 @@ final class AppState: ObservableObject {
     private var scheduler: RefreshScheduler?
     private var clockTimer: Timer?
     private var volatilityAlertedStockIds = Set<String>()
+    private var intradayLoadingStockIds = Set<String>()
+    private var intradayFailureDates: [String: Date] = [:]
+    private let intradayCacheTTL: TimeInterval = 180
+    private let intradayFailureCooldown: TimeInterval = 180
 
     init() {
         appLogger.info("AppState init start")
@@ -258,10 +269,55 @@ final class AppState: ObservableObject {
             lastUpdateTime = Date()
             checkVolatilityAlerts()
             syncStockNamesFromQuotes()
+            refreshCachedIntradayChartsIfNeeded()
         } catch {
             hasError = true
         }
         isLoading = false
+    }
+
+    func loadIntradayIfNeeded(for stock: Stock) async {
+        let now = Date()
+        if let snapshot = intradayCharts[stock.id],
+           now.timeIntervalSince(snapshot.loadedAt) < intradayCacheTTL {
+            return
+        }
+        if intradayLoadingStockIds.contains(stock.id) {
+            return
+        }
+        if let failedAt = intradayFailureDates[stock.id],
+           now.timeIntervalSince(failedAt) < intradayFailureCooldown {
+            return
+        }
+
+        intradayLoadingStockIds.insert(stock.id)
+        defer { intradayLoadingStockIds.remove(stock.id) }
+
+        do {
+            let result = try await ChartService.fetchIntraday(stock: stock)
+            let preClose = result.preClose > 0
+                ? result.preClose
+                : (quotes[stock.id]?.previousClose ?? 0)
+            intradayCharts[stock.id] = IntradayChartSnapshot(
+                points: result.points,
+                preClose: preClose,
+                loadedAt: Date()
+            )
+            intradayFailureDates.removeValue(forKey: stock.id)
+        } catch is CancellationError {
+            return
+        } catch {
+            intradayFailureDates[stock.id] = Date()
+        }
+    }
+
+    private func refreshCachedIntradayChartsIfNeeded() {
+        let cachedIds = Set(intradayCharts.keys)
+        guard !cachedIds.isEmpty else { return }
+
+        for stock in stocks where cachedIds.contains(stock.id) {
+            Task { await loadIntradayIfNeeded(for: stock) }
+        }
     }
 
     // MARK: - 免打扰

@@ -10,8 +10,33 @@ struct StockChartView: View {
     @State private var preClose: Double = 0
     @State private var isLoading = true
     @State private var loadFailed = false
+    @State private var selectedPointId: Int?
 
     private var quote: Quote? { appState.quotes[stock.id] }
+
+    private var averagePoints: [MinutePoint] {
+        var total = 0.0
+        return points.enumerated().map { index, point in
+            total += point.price
+            return MinutePoint(
+                id: point.id,
+                time: point.time,
+                price: total / Double(index + 1)
+            )
+        }
+    }
+
+    private var selectedPoint: MinutePoint? {
+        guard let selectedPointId else { return nil }
+        return points.min { lhs, rhs in
+            abs(lhs.id - selectedPointId) < abs(rhs.id - selectedPointId)
+        }
+    }
+
+    private var selectedAveragePrice: Double? {
+        guard let selectedPoint else { return nil }
+        return averagePoints.first(where: { $0.id == selectedPoint.id })?.price
+    }
 
     // MARK: - 全天 x 轴范围（按市场）
     // A股：09:30-11:30 + 13:00-15:00 = 240 分钟
@@ -74,7 +99,20 @@ struct StockChartView: View {
                     .foregroundColor(.secondary)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
+
+            if let limits = priceLimits {
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("涨停 \(fmt(limits.up))")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Color(appState.config.upColorName))
+                    Text("跌停 \(fmt(limits.down))")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Color(appState.config.downColorName))
+                }
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+            }
 
             if let q = quote {
                 VStack(alignment: .trailing, spacing: 1) {
@@ -119,20 +157,31 @@ struct StockChartView: View {
 
     private var lineChart: some View {
         let prices = points.map(\.price)
-        let minP = prices.min() ?? preClose
-        let maxP = prices.max() ?? preClose
-        let maxDev = max(abs(maxP - preClose), abs(preClose - minP), preClose * 0.005)
-        let yMin = preClose - maxDev * 1.15
-        let yMax = preClose + maxDev * 1.15
+        let avgPoints = averagePoints
+        let avgPrices = avgPoints.map(\.price)
+        let referencePrice = preClose > 0 ? preClose : (prices.first ?? 0)
+        let allPrices = prices + avgPrices + [referencePrice]
+        let minP = allPrices.min() ?? referencePrice
+        let maxP = allPrices.max() ?? referencePrice
+        let minSpan = max(referencePrice * 0.005, 0.01)
+        let maxDev = max(abs(maxP - referencePrice), abs(referencePrice - minP), minSpan)
+        let yMin = referencePrice - maxDev * 1.15
+        let yMax = referencePrice + maxDev * 1.15
 
-        let lastPrice = prices.last ?? preClose
-        let lineColor: Color = lastPrice >= preClose
+        let lastPrice = prices.last ?? referencePrice
+        let lineColor: Color = lastPrice >= referencePrice
             ? Color(appState.config.upColorName)
             : Color(appState.config.downColorName)
+        let averageColor = Color.orange.opacity(0.85)
 
         let labelPositions = xAxisLabels.map(\.0)
         let isUS = stock.market == .usStock
         let labelY = yMin + (yMax - yMin) * 0.88
+        let selected = selectedPoint
+        let selectedAverage = selectedAveragePrice
+        let selectedAlignment: Alignment = (selected?.id ?? 0) < (fullDayRange.upperBound / 2)
+            ? .leading
+            : .trailing
 
         return Chart {
             // 美股时段背景色块
@@ -162,29 +211,60 @@ struct StockChartView: View {
             }
 
             // 昨收参考线
-            RuleMark(y: .value("昨收", preClose))
+            RuleMark(y: .value("昨收", referencePrice))
                 .lineStyle(StrokeStyle(lineWidth: 0.8, dash: [4, 4]))
                 .foregroundStyle(Color.secondary.opacity(0.5))
+
+            // 价格线下方的淡色面积填充
+            ForEach(points) { p in
+                AreaMark(
+                    x: .value("t", p.id),
+                    yStart: .value("base", yMin),
+                    yEnd: .value("price", p.price),
+                    series: .value("series", "填充")
+                )
+                .interpolationMethod(.linear)
+                .foregroundStyle(lineColor.opacity(0.12))
+            }
 
             // 价格折线
             ForEach(points) { p in
                 LineMark(
                     x: .value("t", p.id),
-                    y: .value("price", p.price)
+                    y: .value("price", p.price),
+                    series: .value("series", "价格")
                 )
                 .interpolationMethod(.linear)
                 .foregroundStyle(lineColor)
                 .lineStyle(StrokeStyle(lineWidth: 1.5))
             }
 
-            // 面积填充
-            ForEach(points) { p in
-                AreaMark(
+            // 分时均线
+            ForEach(avgPoints) { p in
+                LineMark(
                     x: .value("t", p.id),
-                    yStart: .value("base", yMin),
-                    yEnd: .value("price", p.price)
+                    y: .value("avg", p.price),
+                    series: .value("series", "均线")
                 )
-                .foregroundStyle(lineColor.opacity(0.12))
+                .interpolationMethod(.linear)
+                .foregroundStyle(averageColor)
+                .lineStyle(StrokeStyle(lineWidth: 1.0))
+            }
+
+            if let selected {
+                RuleMark(x: .value("选中时间", selected.id))
+                    .foregroundStyle(Color.secondary.opacity(0.45))
+                    .lineStyle(StrokeStyle(lineWidth: 0.8, dash: [2, 2]))
+
+                PointMark(
+                    x: .value("选中时间", selected.id),
+                    y: .value("选中价格", selected.price)
+                )
+                .foregroundStyle(lineColor)
+                .symbolSize(24)
+                .annotation(position: .top, alignment: selectedAlignment, spacing: 4) {
+                    selectedAnnotation(point: selected, averagePrice: selectedAverage)
+                }
             }
         }
         .chartXScale(domain: fullDayRange)
@@ -212,6 +292,23 @@ struct StockChartView: View {
                     .foregroundStyle(Color.secondary)
             }
         }
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                updateSelection(
+                                    at: value.location,
+                                    proxy: proxy,
+                                    geometry: geometry
+                                )
+                            }
+                    )
+            }
+        }
     }
 
     // MARK: - 底部统计
@@ -234,11 +331,79 @@ struct StockChartView: View {
         .padding(.vertical, 4)
     }
 
-    private func statItem(label: String, value: String) -> some View {
+    private func statItem(label: String, value: String, valueColor: Color = .primary) -> some View {
         VStack(spacing: 1) {
             Text(label).font(.system(size: 9)).foregroundColor(.secondary)
-            Text(value).font(.system(size: 10, weight: .medium))
+            Text(value)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(valueColor)
         }
+    }
+
+    private func selectedAnnotation(point: MinutePoint, averagePrice: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(point.time)
+                .font(.system(size: 9, weight: .semibold))
+            Text("价 \(fmt(point.price))")
+                .font(.system(size: 9))
+            if let averagePrice {
+                Text("均 \(fmt(averagePrice))")
+                    .font(.system(size: 9))
+                    .foregroundColor(.orange)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(.thinMaterial)
+        .cornerRadius(5)
+    }
+
+    private var priceLimits: (up: Double, down: Double)? {
+        guard preClose > 0, let rate = priceLimitRate else { return nil }
+        let up = roundedLimitPrice(preClose * (1 + rate))
+        let down = roundedLimitPrice(preClose * (1 - rate))
+        return (up, max(down, 0))
+    }
+
+    private var priceLimitRate: Double? {
+        switch stock.market {
+        case .aStock:
+            let code = stock.id.lowercased()
+            let name = stock.name.uppercased()
+            if name.contains("ST") { return 0.05 }
+            if code.hasPrefix("sh688") || code.hasPrefix("sz300") || code.hasPrefix("sz301") {
+                return 0.20
+            }
+            if code.hasPrefix("bj") { return 0.30 }
+            return 0.10
+        case .krStock:
+            return 0.30
+        case .hkStock, .usStock:
+            return nil
+        }
+    }
+
+    private func roundedLimitPrice(_ value: Double) -> Double {
+        switch stock.market {
+        case .krStock:
+            return value.rounded()
+        default:
+            return (value * 100).rounded() / 100
+        }
+    }
+
+    private func updateSelection(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        let plotFrame = geometry[proxy.plotAreaFrame]
+        guard plotFrame.contains(location) else { return }
+        let xPosition = location.x - plotFrame.origin.x
+        guard let xValue = proxy.value(atX: xPosition, as: Int.self) else { return }
+        selectedPointId = nearestPointId(to: xValue)
+    }
+
+    private func nearestPointId(to xValue: Int) -> Int? {
+        points.min { lhs, rhs in
+            abs(lhs.id - xValue) < abs(rhs.id - xValue)
+        }?.id
     }
 
     private func fmt(_ v: Double) -> String {
@@ -253,6 +418,7 @@ struct StockChartView: View {
     private func load() async {
         isLoading = true
         loadFailed = false
+        selectedPointId = nil
         do {
             let (pts, pc) = try await ChartService.fetchIntraday(stock: stock)
             self.points = pts
