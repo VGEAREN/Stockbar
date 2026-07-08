@@ -38,6 +38,13 @@ struct StockChartView: View {
         return averagePoints.first(where: { $0.id == selectedPoint.id })?.price
     }
 
+    private var lowestPoint: MinutePoint? {
+        points.reduce(nil) { current, point in
+            guard let current else { return point }
+            return point.price < current.price ? point : current
+        }
+    }
+
     // MARK: - 全天 x 轴范围（按市场）
     // A股：09:30-11:30 + 13:00-15:00 = 240 分钟
     // 港股：09:30-12:00 + 13:00-16:00 = 330 分钟
@@ -182,6 +189,14 @@ struct StockChartView: View {
         let selectedAlignment: Alignment = (selected?.id ?? 0) < (fullDayRange.upperBound / 2)
             ? .leading
             : .trailing
+        let lowest = lowestPoint
+        let lowestAlignment: Alignment = (lowest?.id ?? 0) < (fullDayRange.upperBound / 2)
+            ? .leading
+            : .trailing
+        let shouldShowLowestLabel = lowest.map { low in
+            guard let selected else { return true }
+            return abs(selected.id - low.id) > 12
+        } ?? false
 
         return Chart {
             // 美股时段背景色块
@@ -249,6 +264,20 @@ struct StockChartView: View {
                 .interpolationMethod(.linear)
                 .foregroundStyle(averageColor)
                 .lineStyle(StrokeStyle(lineWidth: 1.0))
+            }
+
+            if let lowest {
+                PointMark(
+                    x: .value("最低时间", lowest.id),
+                    y: .value("最低价", lowest.price)
+                )
+                .foregroundStyle(Color(appState.config.downColorName).opacity(0.75))
+                .symbolSize(18)
+                .annotation(position: .top, alignment: lowestAlignment, spacing: 3) {
+                    if shouldShowLowestLabel {
+                        lowestAnnotation(point: lowest)
+                    }
+                }
             }
 
             if let selected {
@@ -342,7 +371,7 @@ struct StockChartView: View {
 
     private func selectedAnnotation(point: MinutePoint, averagePrice: Double?) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(point.time)
+            Text(formattedTime(point.time))
                 .font(.system(size: 9, weight: .semibold))
             Text("价 \(fmt(point.price))")
                 .font(.system(size: 9))
@@ -356,6 +385,16 @@ struct StockChartView: View {
         .padding(.vertical, 4)
         .background(.thinMaterial)
         .cornerRadius(5)
+    }
+
+    private func lowestAnnotation(point: MinutePoint) -> some View {
+        Text("最低时间 \(formattedTime(point.time))")
+            .font(.system(size: 9, weight: .medium))
+            .foregroundColor(Color(appState.config.downColorName))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(.thinMaterial)
+            .cornerRadius(4)
     }
 
     private var priceLimits: (up: Double, down: Double)? {
@@ -411,6 +450,15 @@ struct StockChartView: View {
         if v >= 1000 { return String(format: "%.0f", v) }
         if v >= 10   { return String(format: "%.2f", v) }
         return String(format: "%.3f", v)
+    }
+
+    private func formattedTime(_ raw: String) -> String {
+        if raw.contains(":") { return raw }
+        let digits = raw.filter(\.isNumber)
+        guard digits.count == 4 else { return raw }
+        let hour = String(digits.prefix(2))
+        let minute = String(digits.suffix(2))
+        return "\(hour):\(minute)"
     }
 
     // MARK: - 数据加载
