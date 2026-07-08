@@ -48,6 +48,7 @@ final class AppState: ObservableObject {
     @Published var lastUpdateTime: Date?        = nil
     @Published var hasError: Bool               = false
     @Published private(set) var intradayCharts: [String: IntradayChartSnapshot] = [:]
+    @Published private(set) var manualRefreshToken: Int = 0
     @Published private var clockNow: Date       = Date()
 
     // MARK: - 文件路径
@@ -220,6 +221,7 @@ final class AppState: ObservableObject {
     }
 
     func forceRefresh() {
+        manualRefreshToken &+= 1
         Task { await refresh() }
     }
 

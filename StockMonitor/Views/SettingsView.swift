@@ -170,6 +170,18 @@ struct SettingsView: View {
                     }.pickerStyle(.segmented)
                 }
 
+                // 资金刷新间隔
+                section("资金刷新间隔") {
+                    Picker("", selection: Binding(
+                        get: { appState.config.fundFlowRefreshInterval },
+                        set: { appState.config.fundFlowRefreshInterval = $0 }
+                    )) {
+                        ForEach(AppSettings.validFundFlowRefreshIntervals, id: \.self) { i in
+                            Text("\(i) 秒").tag(i)
+                        }
+                    }.pickerStyle(.segmented)
+                }
+
                 // 免打扰时段
                 section("免打扰时段") {
                     Toggle("启用免打扰", isOn: Binding(

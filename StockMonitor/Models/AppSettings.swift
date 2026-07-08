@@ -79,6 +79,7 @@ struct AppSettings {
     var statusBarStockId: String         = ""
     var statusBarIconMode: StatusBarIconMode = .appIcon
     var refreshInterval: Int             = 5
+    var fundFlowRefreshInterval: Int     = Self.defaultFundFlowRefreshInterval
     var colorScheme: ColorTheme          = .chinese
     var displayCurrency: DisplayCurrency = .cny
     var sortRule: SortRule               = .changeDesc
@@ -92,6 +93,8 @@ struct AppSettings {
     var volatilityAlertThreshold: Double = Self.defaultVolatilityAlertThreshold
 
     static let validRefreshIntervals = [3, 5, 10, 30]
+    static let validFundFlowRefreshIntervals = [5, 10, 30, 60]
+    static let defaultFundFlowRefreshInterval = 10
     static let defaultDoNotDisturbStartMinutes = 15 * 60
     static let defaultDoNotDisturbEndMinutes = 9 * 60 + 30
     static let defaultVolatilityAlertThreshold = 5.0
@@ -105,12 +108,17 @@ struct AppSettings {
         return minute
     }
 
+    static func validFundFlowRefreshInterval(_ interval: Int?) -> Int? {
+        guard let interval, validFundFlowRefreshIntervals.contains(interval) else { return nil }
+        return interval
+    }
+
 }
 
 // MARK: - Codable（容错：缺失字段使用默认值）
 extension AppSettings: Codable {
     enum CodingKeys: String, CodingKey {
-        case statusBarStockId, statusBarIconMode, refreshInterval, colorScheme, displayCurrency, sortRule, usPriceMode, groupHoldings, activeWatchlistId
+        case statusBarStockId, statusBarIconMode, refreshInterval, fundFlowRefreshInterval, colorScheme, displayCurrency, sortRule, usPriceMode, groupHoldings, activeWatchlistId
         case doNotDisturbEnabled, doNotDisturbStartMinutes, doNotDisturbEndMinutes
         case volatilityAlertEnabled, volatilityAlertThreshold
     }
@@ -120,6 +128,8 @@ extension AppSettings: Codable {
         statusBarStockId   = (try? c.decodeIfPresent(String.self,          forKey: .statusBarStockId))    ?? ""
         statusBarIconMode  = (try? c.decodeIfPresent(StatusBarIconMode.self, forKey: .statusBarIconMode)) ?? .appIcon
         refreshInterval    = (try? c.decodeIfPresent(Int.self,             forKey: .refreshInterval))     ?? 5
+        fundFlowRefreshInterval = Self.validFundFlowRefreshInterval(try? c.decodeIfPresent(Int.self, forKey: .fundFlowRefreshInterval))
+            ?? Self.defaultFundFlowRefreshInterval
         colorScheme        = (try? c.decodeIfPresent(ColorTheme.self,      forKey: .colorScheme))         ?? .chinese
         displayCurrency    = (try? c.decodeIfPresent(DisplayCurrency.self, forKey: .displayCurrency))     ?? .cny
         sortRule           = (try? c.decodeIfPresent(SortRule.self,         forKey: .sortRule))            ?? .changeDesc

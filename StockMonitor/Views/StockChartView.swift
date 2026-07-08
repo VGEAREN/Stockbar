@@ -11,8 +11,12 @@ struct StockChartView: View {
     @State private var isLoading = true
     @State private var loadFailed = false
     @State private var selectedPointId: Int?
+    @State private var fundFlowSnapshot: FundFlowSnapshot?
+    @State private var fundFlowStockId: String?
+    @State private var isFundFlowLoading = false
 
     private var quote: Quote? { appState.quotes[stock.id] }
+    private var fundFlowTaskId: String { "\(stock.id)-\(appState.config.fundFlowRefreshInterval)" }
 
     private var averagePoints: [MinutePoint] {
         var total = 0.0
@@ -84,7 +88,16 @@ struct StockChartView: View {
                 statsRow
             }
         }
-        .task { await load() }
+        .task(id: stock.id) {
+            await load()
+        }
+        .task(id: fundFlowTaskId) {
+            await pollFundFlow()
+        }
+        .onChange(of: appState.manualRefreshToken) { _ in
+            guard stock.market == .aStock else { return }
+            Task { await loadFundFlow() }
+        }
     }
 
     // MARK: - 顶部信息栏
@@ -345,6 +358,7 @@ struct StockChartView: View {
 
     private var statsRow: some View {
         let prices = points.map(\.price)
+        let fundFlow = fundFlowStat
         return HStack(spacing: 0) {
             statItem(label: "昨收", value: fmt(preClose))
             Spacer()
@@ -354,10 +368,28 @@ struct StockChartView: View {
             Spacer()
             statItem(label: "最低", value: fmt(prices.min() ?? 0))
             Spacer()
-            statItem(label: "现价", value: fmt(quote?.price ?? 0))
+            statItem(label: fundFlow.label, value: fundFlow.value, valueColor: fundFlow.color)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
+    }
+
+    private var fundFlowStat: (label: String, value: String, color: Color) {
+        guard stock.market == .aStock else {
+            return ("资金", "--", .secondary)
+        }
+        guard let snapshot = fundFlowSnapshot else {
+            return ("资金", "--", .secondary)
+        }
+
+        let amount = snapshot.mainNetInflow
+        if amount > 0 {
+            return ("净流入", formattedFundAmount(amount), Color(appState.config.upColorName))
+        }
+        if amount < 0 {
+            return ("净流出", formattedFundAmount(abs(amount)), Color(appState.config.downColorName))
+        }
+        return ("净流入", formattedFundAmount(0), .secondary)
     }
 
     private func statItem(label: String, value: String, valueColor: Color = .primary) -> some View {
@@ -461,6 +493,29 @@ struct StockChartView: View {
         return "\(hour):\(minute)"
     }
 
+    private func formattedFundAmount(_ amount: Double) -> String {
+        let value = abs(amount)
+        if value >= 100_000_000 {
+            return "\(trimmedNumber(value / 100_000_000, decimals: 2))亿"
+        }
+        if value >= 10_000 {
+            let decimals = value >= 1_000_000 ? 1 : 2
+            return "\(trimmedNumber(value / 10_000, decimals: decimals))万"
+        }
+        return trimmedNumber(value, decimals: 0)
+    }
+
+    private func trimmedNumber(_ value: Double, decimals: Int) -> String {
+        var text = String(format: "%.\(decimals)f", value)
+        while text.contains(".") && text.hasSuffix("0") {
+            text.removeLast()
+        }
+        if text.hasSuffix(".") {
+            text.removeLast()
+        }
+        return text
+    }
+
     // MARK: - 数据加载
 
     private func load() async {
@@ -475,5 +530,43 @@ struct StockChartView: View {
             loadFailed = true
         }
         isLoading = false
+    }
+
+    private func pollFundFlow() async {
+        guard stock.market == .aStock else { return }
+        if fundFlowStockId != stock.id {
+            fundFlowSnapshot = nil
+            fundFlowStockId = stock.id
+        }
+
+        let interval = max(1, appState.config.fundFlowRefreshInterval)
+
+        await loadFundFlow()
+
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
+            } catch {
+                return
+            }
+            await loadFundFlow()
+        }
+    }
+
+    private func loadFundFlow() async {
+        guard !isFundFlowLoading else { return }
+        isFundFlowLoading = true
+        defer { isFundFlowLoading = false }
+
+        do {
+            if let snapshot = try await FundFlowService.fetchAStockFundFlow(stock: stock) {
+                fundFlowSnapshot = snapshot
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            logToFile("StockChartView: load fund flow failed for \(stock.id): \(error)")
+            return
+        }
     }
 }
