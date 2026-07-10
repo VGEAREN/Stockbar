@@ -12,6 +12,7 @@ struct StockChartView: View {
     @State private var loadFailed = false
     @State private var selectedPointId: Int?
     @State private var fundFlowSnapshot: FundFlowSnapshot?
+    @State private var sectorSnapshot: SectorSnapshot?
     @State private var fundFlowStockId: String?
     @State private var isFundFlowLoading = false
 
@@ -117,6 +118,22 @@ struct StockChartView: View {
                 Text(stock.id)
                     .font(.system(size: 9))
                     .foregroundColor(.secondary)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+
+            if stock.market == .aStock {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(sectorSnapshot?.name ?? " ")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    Text(sectorSnapshot?.formattedPercent ?? " ")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(sectorChangeColor.opacity(0.9))
+                        .lineLimit(1)
+                }
+                .frame(width: 52, alignment: .leading)
             }
 
             Spacer(minLength: 8)
@@ -392,6 +409,13 @@ struct StockChartView: View {
         return ("净流入", formattedFundAmount(0), .secondary)
     }
 
+    private var sectorChangeColor: Color {
+        guard let changePercent = sectorSnapshot?.changePercent else { return .secondary }
+        if changePercent > 0 { return Color(appState.config.upColorName) }
+        if changePercent < 0 { return Color(appState.config.downColorName) }
+        return .secondary
+    }
+
     private func statItem(label: String, value: String, valueColor: Color = .primary) -> some View {
         VStack(spacing: 1) {
             Text(label).font(.system(size: 9)).foregroundColor(.secondary)
@@ -536,6 +560,7 @@ struct StockChartView: View {
         guard stock.market == .aStock else { return }
         if fundFlowStockId != stock.id {
             fundFlowSnapshot = nil
+            sectorSnapshot = nil
             fundFlowStockId = stock.id
         }
 
@@ -558,15 +583,42 @@ struct StockChartView: View {
         isFundFlowLoading = true
         defer { isFundFlowLoading = false }
 
+        async let nextFundFlow = fetchFundFlowSnapshot()
+        async let nextSectors = fetchSectorSnapshots()
+        let (fundFlow, sectors) = await (nextFundFlow, nextSectors)
+
+        guard !Task.isCancelled else { return }
+        if let fundFlow {
+            fundFlowSnapshot = fundFlow
+        }
+        if let sectors {
+            let primarySectorName = fundFlow?.primarySectorName ?? fundFlowSnapshot?.primarySectorName
+            sectorSnapshot = FundFlowService.primarySector(
+                from: sectors,
+                matching: primarySectorName
+            )
+        }
+    }
+
+    private func fetchFundFlowSnapshot() async -> FundFlowSnapshot? {
         do {
-            if let snapshot = try await FundFlowService.fetchAStockFundFlow(stock: stock) {
-                fundFlowSnapshot = snapshot
-            }
+            return try await FundFlowService.fetchAStockFundFlow(stock: stock)
         } catch is CancellationError {
-            return
+            return nil
         } catch {
             logToFile("StockChartView: load fund flow failed for \(stock.id): \(error)")
-            return
+            return nil
+        }
+    }
+
+    private func fetchSectorSnapshots() async -> [SectorSnapshot]? {
+        do {
+            return try await FundFlowService.fetchAStockSectors(stock: stock)
+        } catch is CancellationError {
+            return nil
+        } catch {
+            logToFile("StockChartView: load sector failed for \(stock.id): \(error)")
+            return nil
         }
     }
 }
