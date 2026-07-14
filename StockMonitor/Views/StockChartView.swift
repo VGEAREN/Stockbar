@@ -6,6 +6,14 @@ struct StockChartView: View {
         let label: String
         let value: String
         let color: Color
+        let helpText: String?
+
+        init(label: String, value: String, color: Color, helpText: String? = nil) {
+            self.label = label
+            self.value = value
+            self.color = color
+            self.helpText = helpText
+        }
     }
 
     let stock: Stock
@@ -21,6 +29,7 @@ struct StockChartView: View {
     @State private var sectorSnapshot: SectorSnapshot?
     @State private var fundFlowStockId: String?
     @State private var isFundFlowLoading = false
+    @State private var hoveredStatHelp: String?
 
     private var quote: Quote? { appState.quotes[stock.id] }
     private var fundFlowTaskId: String { "\(stock.id)-\(appState.config.fundFlowRefreshInterval)" }
@@ -385,6 +394,7 @@ struct StockChartView: View {
         let prices = points.map(\.price)
         let openPrice = points.first?.price ?? 0
         let fundFlow = fundFlowStat
+        let volumeRatio = volumeRatioStat
         let primaryStats: [StatValue?] = [
             StatValue(label: "昨收", value: fmt(preClose), color: .primary),
             StatValue(label: "今开", value: fmt(openPrice), color: openPriceColor(openPrice)),
@@ -403,12 +413,12 @@ struct StockChartView: View {
                 value: formattedPercent(fundFlowSnapshot?.turnoverRate),
                 color: .primary
             ),
+            volumeRatio,
             StatValue(
                 label: "振幅",
                 value: formattedPercent(fundFlowSnapshot?.amplitude),
                 color: .primary
             ),
-            nil,
             nil,
         ]
 
@@ -434,7 +444,7 @@ struct StockChartView: View {
             ZStack(alignment: .topLeading) {
                 ForEach(values.indices, id: \.self) { index in
                     if let item = values[index] {
-                        statItem(label: item.label, value: item.value, valueColor: item.color)
+                        statItemView(item)
                             .fixedSize()
                             .position(
                                 x: edgeInset + availableWidth * CGFloat(index) / CGFloat(values.count - 1),
@@ -445,6 +455,44 @@ struct StockChartView: View {
             }
         }
         .frame(height: 26)
+    }
+
+    @ViewBuilder
+    private func statItemView(_ item: StatValue) -> some View {
+        if let helpText = item.helpText {
+            statItem(label: item.label, value: item.value, valueColor: item.color)
+                .frame(width: 58, height: 26)
+                .contentShape(Rectangle())
+                .onHover { isHovering in
+                    if isHovering {
+                        hoveredStatHelp = helpText
+                    } else if hoveredStatHelp == helpText {
+                        hoveredStatHelp = nil
+                    }
+                }
+                .overlay(alignment: .top) {
+                    if hoveredStatHelp == helpText {
+                        Text(helpText)
+                            .font(.system(size: 9))
+                            .multilineTextAlignment(.center)
+                            .fixedSize()
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(.regularMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 5)
+                                    .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
+                            }
+                            .shadow(color: .black.opacity(0.16), radius: 3, y: 1)
+                            .offset(y: -42)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .zIndex(hoveredStatHelp == helpText ? 10 : 0)
+        } else {
+            statItem(label: item.label, value: item.value, valueColor: item.color)
+        }
     }
 
     private func openPriceColor(_ openPrice: Double) -> Color {
@@ -470,6 +518,35 @@ struct StockChartView: View {
             return ("净流出", formattedFundAmount(abs(amount)), Color(appState.config.downColorName))
         }
         return ("净流入", formattedFundAmount(0), .secondary)
+    }
+
+    private var volumeRatioStat: StatValue {
+        guard let ratio = fundFlowSnapshot?.volumeRatio, ratio >= 0 else {
+            return StatValue(label: "量比", value: "--", color: .secondary, helpText: "暂无量比数据")
+        }
+
+        let level = VolumeRatioLevel(ratio: ratio)
+        return StatValue(
+            label: "量比",
+            value: level.displayName,
+            color: volumeRatioColor(level),
+            helpText: String(
+                format: "量比 %.2fx\n当前平均每分钟成交量约为近 5 日平均的 %.2f 倍",
+                ratio,
+                ratio
+            )
+        )
+    }
+
+    private func volumeRatioColor(_ level: VolumeRatioLevel) -> Color {
+        switch level {
+        case .quiet: return .secondary
+        case .low: return .blue
+        case .normal: return .green
+        case .active: return .orange
+        case .high: return .purple
+        case .extreme: return .red
+        }
     }
 
     private var sectorChangeColor: Color {

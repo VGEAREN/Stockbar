@@ -3,9 +3,41 @@ import Foundation
 struct FundFlowSnapshot {
     let mainNetInflow: Double
     let turnoverRate: Double?
+    let volumeRatio: Double?
     let amplitude: Double?
     let updateTime: String
     let primarySectorName: String?
+}
+
+enum VolumeRatioLevel: Equatable {
+    case quiet
+    case low
+    case normal
+    case active
+    case high
+    case extreme
+
+    init(ratio: Double) {
+        switch ratio {
+        case ..<0.5: self = .quiet
+        case ..<0.8: self = .low
+        case ..<1.5: self = .normal
+        case ..<2.5: self = .active
+        case ..<5.0: self = .high
+        default: self = .extreme
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .quiet: return "清淡"
+        case .low: return "偏低"
+        case .normal: return "正常"
+        case .active: return "活跃"
+        case .high: return "放量"
+        case .extreme: return "极端"
+        }
+    }
 }
 
 struct SectorSnapshot: Equatable {
@@ -24,7 +56,7 @@ final class FundFlowService {
         guard stock.market == .aStock,
               let secid = eastmoneySecid(for: stock.id) else { return nil }
 
-        let fields = "f1,f2,f3,f7,f8,f12,f13,f14,f62,f66,f69,f72,f75,f78,f81,f84,f87,f100,f124"
+        let fields = "f1,f2,f3,f7,f8,f10,f12,f13,f14,f62,f66,f69,f72,f75,f78,f81,f84,f87,f100,f124"
         let urlString = "https://push2delay.eastmoney.com/api/qt/ulist.np/get?fltt=2&secids=\(secid)&fields=\(fields)"
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
 
@@ -39,6 +71,7 @@ final class FundFlowService {
         return FundFlowSnapshot(
             mainNetInflow: parsed.mainNetInflow,
             turnoverRate: parsed.turnoverRate,
+            volumeRatio: parsed.volumeRatio,
             amplitude: parsed.amplitude,
             updateTime: parsed.updateTime,
             primarySectorName: parsed.primarySectorName
@@ -67,6 +100,7 @@ final class FundFlowService {
     static func parseEastmoneyFundFlow(_ data: Data) -> (
         mainNetInflow: Double,
         turnoverRate: Double?,
+        volumeRatio: Double?,
         amplitude: Double?,
         updateTime: String,
         primarySectorName: String?
@@ -81,6 +115,7 @@ final class FundFlowService {
         return (
             mainNetInflow,
             numericValue(item["f8"]),
+            numericValue(item["f10"]),
             numericValue(item["f7"]),
             formatEastmoneyTimestamp(item["f124"]),
             primarySectorName

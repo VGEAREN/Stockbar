@@ -14,6 +14,7 @@ final class FundFlowServiceTests: XCTestCase {
                 "f14": "兆易创新",
                 "f7": 6.68,
                 "f8": 3.21,
+                "f10": 2.15,
                 "f62": -323225856.0,
                 "f100": "半导体",
                 "f124": 1783485809
@@ -25,6 +26,7 @@ final class FundFlowServiceTests: XCTestCase {
         let result = try XCTUnwrap(FundFlowService.parseEastmoneyFundFlow(Data(json.utf8)))
         XCTAssertEqual(result.mainNetInflow, -323225856.0, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(result.turnoverRate), 3.21, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(result.volumeRatio), 2.15, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(result.amplitude), 6.68, accuracy: 0.001)
         XCTAssertEqual(result.updateTime, "2026-07-08 12:43:29")
         XCTAssertEqual(result.primarySectorName, "半导体")
@@ -46,7 +48,26 @@ final class FundFlowServiceTests: XCTestCase {
         """
         let result = try XCTUnwrap(FundFlowService.parseEastmoneyFundFlow(Data(json.utf8)))
         XCTAssertNil(result.turnoverRate)
+        XCTAssertNil(result.volumeRatio)
         XCTAssertNil(result.amplitude)
+    }
+
+    func test_volumeRatioLevel_boundaries() {
+        XCTAssertEqual(VolumeRatioLevel(ratio: 0.49), .quiet)
+        XCTAssertEqual(VolumeRatioLevel(ratio: 0.5), .low)
+        XCTAssertEqual(VolumeRatioLevel(ratio: 0.8), .normal)
+        XCTAssertEqual(VolumeRatioLevel(ratio: 1.5), .active)
+        XCTAssertEqual(VolumeRatioLevel(ratio: 2.5), .high)
+        XCTAssertEqual(VolumeRatioLevel(ratio: 5.0), .extreme)
+    }
+
+    func test_volumeRatioLevel_displayNames() {
+        XCTAssertEqual(VolumeRatioLevel(ratio: 0.49).displayName, "清淡")
+        XCTAssertEqual(VolumeRatioLevel(ratio: 0.5).displayName, "偏低")
+        XCTAssertEqual(VolumeRatioLevel(ratio: 0.8).displayName, "正常")
+        XCTAssertEqual(VolumeRatioLevel(ratio: 1.5).displayName, "活跃")
+        XCTAssertEqual(VolumeRatioLevel(ratio: 2.5).displayName, "放量")
+        XCTAssertEqual(VolumeRatioLevel(ratio: 5.0).displayName, "极端")
     }
 
     func test_parseEastmoneySector_returns_primary_sector() throws {
