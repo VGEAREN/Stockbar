@@ -30,6 +30,11 @@ struct StockChartView: View {
     @State private var fundFlowStockId: String?
     @State private var isFundFlowLoading = false
     @State private var hoveredStatHelp: String?
+    @State private var intradayLoadedAt: Date?
+    @State private var fundFlowLoadedAt: Date?
+    @State private var isIntradayRefreshing = false
+    @State private var intradaySignal: IntradaySignal?
+    @State private var signalStabilizer = IntradaySignalStabilizer()
 
     private var quote: Quote? { appState.quotes[stock.id] }
     private var fundFlowTaskId: String { "\(stock.id)-\(appState.config.fundFlowRefreshInterval)" }
@@ -109,14 +114,26 @@ struct StockChartView: View {
             }
         }
         .task(id: stock.id) {
-            await load()
+            await pollIntraday()
         }
         .task(id: fundFlowTaskId) {
             await pollFundFlow()
         }
+        .onChange(of: quote?.price) { _ in
+            refreshIntradaySignal()
+        }
+        .onChange(of: quote?.updateTime) { _ in
+            refreshIntradaySignal()
+        }
+        .onChange(of: appState.effectiveShares(for: stock)) { _ in
+            refreshIntradaySignal()
+        }
         .onChange(of: appState.manualRefreshToken) { _ in
             guard stock.market == .aStock else { return }
-            Task { await loadFundFlow() }
+            Task {
+                await refreshIntraday(showLoading: false)
+                await loadFundFlow()
+            }
         }
     }
 
@@ -407,6 +424,7 @@ struct StockChartView: View {
         let fundFlow = fundFlowStat
         let turnoverRate = turnoverRateStat
         let volumeRatio = volumeRatioStat
+        let intradaySignal = intradaySignalStat
         let primaryStats: [StatValue?] = [
             StatValue(label: "昨收", value: fmt(preClose), color: .primary),
             StatValue(label: "今开", value: fmt(openPrice), color: openPriceColor(openPrice)),
@@ -427,7 +445,7 @@ struct StockChartView: View {
                 value: formattedPercent(fundFlowSnapshot?.amplitude),
                 color: .primary
             ),
-            nil,
+            intradaySignal,
         ]
 
         return VStack(spacing: 4) {
@@ -468,6 +486,8 @@ struct StockChartView: View {
     @ViewBuilder
     private func statItemView(_ item: StatValue) -> some View {
         if let helpText = item.helpText {
+            let tooltipAlignment: Alignment = item.label == "盘面" ? .topTrailing : .top
+            let tooltipOffset = -CGFloat(helpText.split(separator: "\n").count * 12 + 12)
             statItem(label: item.label, value: item.value, valueColor: item.color)
                 .frame(width: 58, height: 26)
                 .contentShape(Rectangle())
@@ -478,7 +498,7 @@ struct StockChartView: View {
                         hoveredStatHelp = nil
                     }
                 }
-                .overlay(alignment: .top) {
+                .overlay(alignment: tooltipAlignment) {
                     if hoveredStatHelp == helpText {
                         Text(helpText)
                             .font(.system(size: 9))
@@ -493,7 +513,7 @@ struct StockChartView: View {
                                     .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
                             }
                             .shadow(color: .black.opacity(0.16), radius: 3, y: 1)
-                            .offset(y: -42)
+                            .offset(y: tooltipOffset)
                             .allowsHitTesting(false)
                     }
                 }
@@ -526,6 +546,32 @@ struct StockChartView: View {
             return ("净流出", formattedFundAmount(abs(amount)), Color(appState.config.downColorName))
         }
         return ("净流入", formattedFundAmount(0), .secondary)
+    }
+
+    private var intradaySignalStat: StatValue {
+        guard let signal = intradaySignal else {
+            return StatValue(
+                label: "盘面",
+                value: "数据/等待",
+                color: .secondary,
+                helpText: "盘面：数据\n操作倾向：等待\n操作仅供盘面参考"
+            )
+        }
+        return StatValue(
+            label: "盘面",
+            value: signal.displayText,
+            color: intradaySignalColor(signal.colorRole),
+            helpText: signal.helpText
+        )
+    }
+
+    private func intradaySignalColor(_ role: IntradaySignalColorRole) -> Color {
+        switch role {
+        case .up: return Color(appState.config.upColorName)
+        case .down: return Color(appState.config.downColorName)
+        case .warning: return .orange
+        case .neutral: return .secondary
+        }
     }
 
     private var volumeRatioStat: StatValue {
@@ -730,18 +776,54 @@ struct StockChartView: View {
 
     // MARK: - 数据加载
 
-    private func load() async {
-        isLoading = true
-        loadFailed = false
-        selectedPointId = nil
+    private func pollIntraday() async {
+        intradayLoadedAt = nil
+        intradaySignal = nil
+        signalStabilizer.reset()
+        await refreshIntraday(showLoading: true)
+
+        guard stock.market == .aStock else { return }
+        while !Task.isCancelled {
+            let interval = max(1, appState.refreshInterval)
+            do {
+                try await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
+            } catch {
+                return
+            }
+            await refreshIntraday(showLoading: false)
+        }
+    }
+
+    private func refreshIntraday(showLoading: Bool) async {
+        guard !isIntradayRefreshing else { return }
+        isIntradayRefreshing = true
+        defer {
+            isIntradayRefreshing = false
+            if showLoading { isLoading = false }
+        }
+
+        if showLoading {
+            isLoading = true
+            loadFailed = false
+            selectedPointId = nil
+        }
+
         do {
             let (pts, pc) = try await ChartService.fetchIntraday(stock: stock)
+            guard !Task.isCancelled else { return }
             self.points = pts
             self.preClose = pc > 0 ? pc : (quote?.previousClose ?? 0)
+            self.intradayLoadedAt = Date()
+            self.loadFailed = false
+            refreshIntradaySignal()
+        } catch is CancellationError {
+            return
         } catch {
-            loadFailed = true
+            if points.isEmpty {
+                loadFailed = true
+            }
+            logToFile("StockChartView: refresh intraday failed for \(stock.id): \(error)")
         }
-        isLoading = false
     }
 
     private func pollFundFlow() async {
@@ -749,6 +831,7 @@ struct StockChartView: View {
         if fundFlowStockId != stock.id {
             fundFlowSnapshot = nil
             sectorSnapshot = nil
+            fundFlowLoadedAt = nil
             fundFlowStockId = stock.id
         }
 
@@ -778,6 +861,7 @@ struct StockChartView: View {
         guard !Task.isCancelled else { return }
         if let fundFlow {
             fundFlowSnapshot = fundFlow
+            fundFlowLoadedAt = Date()
         }
         if let sectors {
             let primarySectorName = fundFlow?.primarySectorName ?? fundFlowSnapshot?.primarySectorName
@@ -786,6 +870,29 @@ struct StockChartView: View {
                 matching: primarySectorName
             )
         }
+        refreshIntradaySignal()
+    }
+
+    private func refreshIntradaySignal(now: Date = Date()) {
+        guard stock.market == .aStock else { return }
+        let input = IntradaySignalInput(
+            points: points,
+            currentPrice: quote?.price,
+            quoteIsToday: quote?.isToday ?? false,
+            preClose: preClose > 0 ? preClose : (quote?.previousClose ?? 0),
+            volumeRatio: fundFlowSnapshot?.volumeRatio,
+            mainNetInflow: fundFlowSnapshot?.mainNetInflow,
+            sectorChangePercent: sectorSnapshot?.changePercent,
+            isHolding: (appState.effectiveShares(for: stock) ?? 0) > 0,
+            now: now,
+            intradayLoadedAt: intradayLoadedAt,
+            fundFlowLoadedAt: fundFlowLoadedAt,
+            fundFlowMaxAge: TimeInterval(max(1, appState.config.fundFlowRefreshInterval * 2))
+        )
+        let candidate = IntradaySignalService.evaluate(input)
+        var stabilizer = signalStabilizer
+        intradaySignal = stabilizer.update(candidate)
+        signalStabilizer = stabilizer
     }
 
     private func fetchFundFlowSnapshot() async -> FundFlowSnapshot? {

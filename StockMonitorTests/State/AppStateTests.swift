@@ -283,6 +283,40 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(sut.totalPnL, 0.0, accuracy: 0.001)
     }
 
+    func test_effectiveShares_activeWatchlistOverridesRealHolding() {
+        let stock = Stock(
+            id: "sh600000",
+            name: "股票1",
+            market: .aStock,
+            costPrice: 10.0,
+            holdingShares: 100
+        )
+        let watchlist = Watchlist(
+            id: "watchlist-1",
+            name: "观察仓",
+            entries: [stock.id: WatchlistEntry(costPrice: 11.0, holdingShares: 250)]
+        )
+        sut.stocks = [stock]
+        sut.watchlists = [watchlist]
+        sut.config.activeWatchlistId = watchlist.id
+
+        XCTAssertEqual(sut.effectiveShares(for: stock), 250)
+    }
+
+    func test_effectiveShares_zeroSharesIsNotAPositiveHolding() {
+        let stock = Stock(
+            id: "sh600000",
+            name: "股票1",
+            market: .aStock,
+            costPrice: 10.0,
+            holdingShares: 0
+        )
+        sut.stocks = [stock]
+
+        XCTAssertEqual(sut.effectiveShares(for: stock), 0)
+        XCTAssertFalse((sut.effectiveShares(for: stock) ?? 0) > 0)
+    }
+
     private func makeDate(hour: Int, minute: Int) -> Date {
         var comps = DateComponents()
         comps.calendar = Calendar.current
