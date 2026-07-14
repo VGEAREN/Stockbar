@@ -236,13 +236,21 @@ struct StockChartView: View {
         let selectedAlignment: Alignment = (selected?.id ?? 0) < (fullDayRange.upperBound / 2)
             ? .leading
             : .trailing
+        let selectedAnnotationPosition: AnnotationPosition = selected.map { point in
+            let upperSafeBoundary = yMin + (yMax - yMin) * 0.72
+            return point.price >= upperSafeBoundary ? .bottom : .top
+        } ?? .top
         let lowest = lowestPoint
         let lowestAlignment: Alignment = (lowest?.id ?? 0) < (fullDayRange.upperBound / 2)
             ? .leading
             : .trailing
         let shouldShowLowestLabel = lowest.map { low in
             guard let selected else { return true }
-            return abs(selected.id - low.id) > 12
+            let xSpan = max(fullDayRange.upperBound - fullDayRange.lowerBound, 1)
+            let ySpan = max(yMax - yMin, 0.01)
+            let horizontalGap = Double(abs(selected.id - low.id)) / Double(xSpan)
+            let verticalGap = abs(selected.price - low.price) / ySpan
+            return horizontalGap > 0.16 || verticalGap > 0.28
         } ?? false
 
         return Chart {
@@ -338,7 +346,7 @@ struct StockChartView: View {
                 )
                 .foregroundStyle(lineColor)
                 .symbolSize(24)
-                .annotation(position: .top, alignment: selectedAlignment, spacing: 4) {
+                .annotation(position: selectedAnnotationPosition, alignment: selectedAlignment, spacing: 4) {
                     selectedAnnotation(point: selected, averagePrice: selectedAverage)
                 }
             }
