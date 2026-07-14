@@ -375,11 +375,12 @@ struct StockChartView: View {
 
     private var statsRow: some View {
         let prices = points.map(\.price)
+        let openPrice = points.first?.price ?? 0
         let fundFlow = fundFlowStat
         return HStack(spacing: 0) {
             statItem(label: "昨收", value: fmt(preClose))
             Spacer()
-            statItem(label: "今开", value: fmt(points.first?.price ?? 0))
+            statItem(label: "今开", value: fmt(openPrice), valueColor: openPriceColor(openPrice))
             Spacer()
             statItem(label: "最高", value: fmt(prices.max() ?? 0))
             Spacer()
@@ -389,6 +390,13 @@ struct StockChartView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
+    }
+
+    private func openPriceColor(_ openPrice: Double) -> Color {
+        guard openPrice > 0, preClose > 0 else { return .primary }
+        if openPrice > preClose { return Color(appState.config.upColorName) }
+        if openPrice < preClose { return Color(appState.config.downColorName) }
+        return .primary
     }
 
     private var fundFlowStat: (label: String, value: String, color: Color) {
