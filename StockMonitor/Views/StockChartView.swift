@@ -394,6 +394,7 @@ struct StockChartView: View {
         let prices = points.map(\.price)
         let openPrice = points.first?.price ?? 0
         let fundFlow = fundFlowStat
+        let turnoverRate = turnoverRateStat
         let volumeRatio = volumeRatioStat
         let primaryStats: [StatValue?] = [
             StatValue(label: "昨收", value: fmt(preClose), color: .primary),
@@ -408,11 +409,7 @@ struct StockChartView: View {
                 value: averagePoints.last.map { fmt($0.price) } ?? "--",
                 color: averageLineColor
             ),
-            StatValue(
-                label: "换手率",
-                value: formattedPercent(fundFlowSnapshot?.turnoverRate),
-                color: .primary
-            ),
+            turnoverRate,
             volumeRatio,
             StatValue(
                 label: "振幅",
@@ -536,6 +533,41 @@ struct StockChartView: View {
                 ratio
             )
         )
+    }
+
+    private var turnoverRateStat: StatValue {
+        guard let rate = fundFlowSnapshot?.turnoverRate, rate >= 0 else {
+            return StatValue(
+                label: "换手率",
+                value: "--",
+                color: .secondary,
+                helpText: "暂无换手率数据"
+            )
+        }
+
+        let level = TurnoverRateLevel(rate: rate)
+        return StatValue(
+            label: "换手率",
+            value: formattedPercent(rate),
+            color: turnoverRateColor(level),
+            helpText: String(
+                format: "换手率 %.2f%%\n累计成交量约为流通股本的 %.2f%%\n属于%@",
+                rate,
+                rate,
+                level.displayName
+            )
+        )
+    }
+
+    private func turnoverRateColor(_ level: TurnoverRateLevel) -> Color {
+        switch level {
+        case .quiet: return .secondary
+        case .low: return .blue
+        case .normal: return .green
+        case .active: return .orange
+        case .high: return .purple
+        case .extreme: return .red
+        }
     }
 
     private func volumeRatioColor(_ level: VolumeRatioLevel) -> Color {

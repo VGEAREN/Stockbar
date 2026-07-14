@@ -70,6 +70,24 @@ final class FundFlowServiceTests: XCTestCase {
         XCTAssertEqual(VolumeRatioLevel(ratio: 5.0).displayName, "极端")
     }
 
+    func test_turnoverRateLevel_boundaries() {
+        XCTAssertEqual(TurnoverRateLevel(rate: 0.49), .quiet)
+        XCTAssertEqual(TurnoverRateLevel(rate: 0.5), .low)
+        XCTAssertEqual(TurnoverRateLevel(rate: 1.0), .normal)
+        XCTAssertEqual(TurnoverRateLevel(rate: 3.0), .active)
+        XCTAssertEqual(TurnoverRateLevel(rate: 7.0), .high)
+        XCTAssertEqual(TurnoverRateLevel(rate: 15.0), .extreme)
+    }
+
+    func test_turnoverRateLevel_displayNames() {
+        XCTAssertEqual(TurnoverRateLevel(rate: 0.49).displayName, "清淡")
+        XCTAssertEqual(TurnoverRateLevel(rate: 0.5).displayName, "偏低")
+        XCTAssertEqual(TurnoverRateLevel(rate: 1.0).displayName, "正常")
+        XCTAssertEqual(TurnoverRateLevel(rate: 3.0).displayName, "活跃")
+        XCTAssertEqual(TurnoverRateLevel(rate: 7.0).displayName, "高换手")
+        XCTAssertEqual(TurnoverRateLevel(rate: 15.0).displayName, "极端")
+    }
+
     func test_parseEastmoneySector_returns_primary_sector() throws {
         let json = """
         {

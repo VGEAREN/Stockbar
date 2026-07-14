@@ -9,6 +9,37 @@ struct FundFlowSnapshot {
     let primarySectorName: String?
 }
 
+enum TurnoverRateLevel: Equatable {
+    case quiet
+    case low
+    case normal
+    case active
+    case high
+    case extreme
+
+    init(rate: Double) {
+        switch rate {
+        case ..<0.5: self = .quiet
+        case ..<1.0: self = .low
+        case ..<3.0: self = .normal
+        case ..<7.0: self = .active
+        case ..<15.0: self = .high
+        default: self = .extreme
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .quiet: return "清淡"
+        case .low: return "偏低"
+        case .normal: return "正常"
+        case .active: return "活跃"
+        case .high: return "高换手"
+        case .extreme: return "极端"
+        }
+    }
+}
+
 enum VolumeRatioLevel: Equatable {
     case quiet
     case low
