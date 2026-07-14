@@ -345,6 +345,9 @@ struct StockChartView: View {
         }
         .chartXScale(domain: fullDayRange)
         .chartYScale(domain: yMin...yMax)
+        .chartPlotStyle { plotArea in
+            plotArea.clipped()
+        }
         .chartXAxis {
             AxisMarks(values: labelPositions) { value in
                 AxisGridLine()
