@@ -12,6 +12,8 @@ final class FundFlowServiceTests: XCTestCase {
               {
                 "f12": "603986",
                 "f14": "兆易创新",
+                "f7": 6.68,
+                "f8": 3.21,
                 "f62": -323225856.0,
                 "f100": "半导体",
                 "f124": 1783485809
@@ -22,12 +24,29 @@ final class FundFlowServiceTests: XCTestCase {
         """
         let result = try XCTUnwrap(FundFlowService.parseEastmoneyFundFlow(Data(json.utf8)))
         XCTAssertEqual(result.mainNetInflow, -323225856.0, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(result.turnoverRate), 3.21, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(result.amplitude), 6.68, accuracy: 0.001)
         XCTAssertEqual(result.updateTime, "2026-07-08 12:43:29")
         XCTAssertEqual(result.primarySectorName, "半导体")
     }
 
     func test_parseEastmoneyFundFlow_invalid_data() {
         XCTAssertNil(FundFlowService.parseEastmoneyFundFlow(Data("not json".utf8)))
+    }
+
+    func test_parseEastmoneyFundFlow_allows_missing_market_metrics() throws {
+        let json = """
+        {
+          "data": {
+            "diff": [
+              { "f62": 1000, "f124": 1783485809 }
+            ]
+          }
+        }
+        """
+        let result = try XCTUnwrap(FundFlowService.parseEastmoneyFundFlow(Data(json.utf8)))
+        XCTAssertNil(result.turnoverRate)
+        XCTAssertNil(result.amplitude)
     }
 
     func test_parseEastmoneySector_returns_primary_sector() throws {

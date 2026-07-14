@@ -2,6 +2,8 @@ import Foundation
 
 struct FundFlowSnapshot {
     let mainNetInflow: Double
+    let turnoverRate: Double?
+    let amplitude: Double?
     let updateTime: String
     let primarySectorName: String?
 }
@@ -22,7 +24,7 @@ final class FundFlowService {
         guard stock.market == .aStock,
               let secid = eastmoneySecid(for: stock.id) else { return nil }
 
-        let fields = "f1,f2,f3,f12,f13,f14,f62,f66,f69,f72,f75,f78,f81,f84,f87,f100,f124"
+        let fields = "f1,f2,f3,f7,f8,f12,f13,f14,f62,f66,f69,f72,f75,f78,f81,f84,f87,f100,f124"
         let urlString = "https://push2delay.eastmoney.com/api/qt/ulist.np/get?fltt=2&secids=\(secid)&fields=\(fields)"
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
 
@@ -36,6 +38,8 @@ final class FundFlowService {
         }
         return FundFlowSnapshot(
             mainNetInflow: parsed.mainNetInflow,
+            turnoverRate: parsed.turnoverRate,
+            amplitude: parsed.amplitude,
             updateTime: parsed.updateTime,
             primarySectorName: parsed.primarySectorName
         )
@@ -60,7 +64,13 @@ final class FundFlowService {
         return snapshots
     }
 
-    static func parseEastmoneyFundFlow(_ data: Data) -> (mainNetInflow: Double, updateTime: String, primarySectorName: String?)? {
+    static func parseEastmoneyFundFlow(_ data: Data) -> (
+        mainNetInflow: Double,
+        turnoverRate: Double?,
+        amplitude: Double?,
+        updateTime: String,
+        primarySectorName: String?
+    )? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let dataObj = root["data"] as? [String: Any],
               let diff = dataObj["diff"] as? [[String: Any]],
@@ -68,7 +78,13 @@ final class FundFlowService {
               let mainNetInflow = numericValue(item["f62"]) else { return nil }
 
         let primarySectorName = (item["f100"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        return (mainNetInflow, formatEastmoneyTimestamp(item["f124"]), primarySectorName)
+        return (
+            mainNetInflow,
+            numericValue(item["f8"]),
+            numericValue(item["f7"]),
+            formatEastmoneyTimestamp(item["f124"]),
+            primarySectorName
+        )
     }
 
     static func parseEastmoneySector(_ data: Data) -> SectorSnapshot? {

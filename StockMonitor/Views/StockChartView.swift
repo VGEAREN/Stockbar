@@ -2,6 +2,12 @@ import SwiftUI
 import Charts
 
 struct StockChartView: View {
+    private struct StatValue {
+        let label: String
+        let value: String
+        let color: Color
+    }
+
     let stock: Stock
     let onClose: () -> Void
     @EnvironmentObject var appState: AppState
@@ -29,6 +35,10 @@ struct StockChartView: View {
                 price: total / Double(index + 1)
             )
         }
+    }
+
+    private var averageLineColor: Color {
+        Color.orange.opacity(0.85)
     }
 
     private var selectedPoint: MinutePoint? {
@@ -209,8 +219,6 @@ struct StockChartView: View {
         let lineColor: Color = lastPrice >= referencePrice
             ? Color(appState.config.upColorName)
             : Color(appState.config.downColorName)
-        let averageColor = Color.orange.opacity(0.85)
-
         let labelPositions = xAxisLabels.map(\.0)
         let isUS = stock.market == .usStock
         let labelY = yMin + (yMax - yMin) * 0.88
@@ -292,7 +300,7 @@ struct StockChartView: View {
                     series: .value("series", "均线")
                 )
                 .interpolationMethod(.linear)
-                .foregroundStyle(averageColor)
+                .foregroundStyle(averageLineColor)
                 .lineStyle(StrokeStyle(lineWidth: 1.0))
             }
 
@@ -377,19 +385,66 @@ struct StockChartView: View {
         let prices = points.map(\.price)
         let openPrice = points.first?.price ?? 0
         let fundFlow = fundFlowStat
-        return HStack(spacing: 0) {
-            statItem(label: "昨收", value: fmt(preClose))
-            Spacer()
-            statItem(label: "今开", value: fmt(openPrice), valueColor: openPriceColor(openPrice))
-            Spacer()
-            statItem(label: "最高", value: fmt(prices.max() ?? 0))
-            Spacer()
-            statItem(label: "最低", value: fmt(prices.min() ?? 0))
-            Spacer()
-            statItem(label: fundFlow.label, value: fundFlow.value, valueColor: fundFlow.color)
+        let primaryStats: [StatValue?] = [
+            StatValue(label: "昨收", value: fmt(preClose), color: .primary),
+            StatValue(label: "今开", value: fmt(openPrice), color: openPriceColor(openPrice)),
+            StatValue(label: "最高", value: fmt(prices.max() ?? 0), color: .primary),
+            StatValue(label: "最低", value: fmt(prices.min() ?? 0), color: .primary),
+            StatValue(label: fundFlow.label, value: fundFlow.value, color: fundFlow.color),
+        ]
+        let secondaryStats: [StatValue?] = [
+            StatValue(
+                label: "当前均价",
+                value: averagePoints.last.map { fmt($0.price) } ?? "--",
+                color: averageLineColor
+            ),
+            StatValue(
+                label: "换手率",
+                value: formattedPercent(fundFlowSnapshot?.turnoverRate),
+                color: .primary
+            ),
+            StatValue(
+                label: "振幅",
+                value: formattedPercent(fundFlowSnapshot?.amplitude),
+                color: .primary
+            ),
+            nil,
+            nil,
+        ]
+
+        return VStack(spacing: 4) {
+            statAnchorRow(primaryStats)
+
+            if stock.market == .aStock {
+                statAnchorRow(secondaryStats)
+            }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 4)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
+    }
+
+    private func statAnchorRow(_ values: [StatValue?]) -> some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let height = geometry.size.height
+            let edgeInset = min(18.0, width / 2)
+            let availableWidth = max(0, width - edgeInset * 2)
+
+            ZStack(alignment: .topLeading) {
+                ForEach(values.indices, id: \.self) { index in
+                    if let item = values[index] {
+                        statItem(label: item.label, value: item.value, valueColor: item.color)
+                            .fixedSize()
+                            .position(
+                                x: edgeInset + availableWidth * CGFloat(index) / CGFloat(values.count - 1),
+                                y: height / 2
+                            )
+                    }
+                }
+            }
+        }
+        .frame(height: 26)
     }
 
     private func openPriceColor(_ openPrice: Double) -> Color {
@@ -442,7 +497,7 @@ struct StockChartView: View {
             if let averagePrice {
                 Text("均 \(fmt(averagePrice))")
                     .font(.system(size: 9))
-                    .foregroundColor(.orange)
+                    .foregroundColor(averageLineColor)
             }
         }
         .padding(.horizontal, 6)
@@ -535,6 +590,11 @@ struct StockChartView: View {
             return "\(trimmedNumber(value / 10_000, decimals: decimals))万"
         }
         return trimmedNumber(value, decimals: 0)
+    }
+
+    private func formattedPercent(_ value: Double?) -> String {
+        guard let value else { return "--" }
+        return String(format: "%.2f%%", value)
     }
 
     private func trimmedNumber(_ value: Double, decimals: Int) -> String {
