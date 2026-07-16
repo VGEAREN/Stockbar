@@ -7,12 +7,20 @@ struct StockChartView: View {
         let value: String
         let color: Color
         let helpText: String?
+        let showsFundFlowDetail: Bool
 
-        init(label: String, value: String, color: Color, helpText: String? = nil) {
+        init(
+            label: String,
+            value: String,
+            color: Color,
+            helpText: String? = nil,
+            showsFundFlowDetail: Bool = false
+        ) {
             self.label = label
             self.value = value
             self.color = color
             self.helpText = helpText
+            self.showsFundFlowDetail = showsFundFlowDetail
         }
     }
 
@@ -26,12 +34,15 @@ struct StockChartView: View {
     @State private var loadFailed = false
     @State private var selectedPointId: Int?
     @State private var fundFlowSnapshot: FundFlowSnapshot?
+    @State private var fundFlowTrend: [FundFlowMinutePoint] = []
     @State private var sectorSnapshot: SectorSnapshot?
     @State private var fundFlowStockId: String?
     @State private var isFundFlowLoading = false
     @State private var hoveredStatHelp: String?
+    @State private var isFundFlowDetailHovered = false
     @State private var intradayLoadedAt: Date?
     @State private var fundFlowLoadedAt: Date?
+    @State private var fundFlowTrendLoadedAt: Date?
     @State private var isIntradayRefreshing = false
     @State private var intradaySignal: IntradaySignal?
     @State private var signalStabilizer = IntradaySignalStabilizer()
@@ -430,7 +441,7 @@ struct StockChartView: View {
             StatValue(label: "今开", value: fmt(openPrice), color: openPriceColor(openPrice)),
             StatValue(label: "最高", value: fmt(prices.max() ?? 0), color: .primary),
             StatValue(label: "最低", value: fmt(prices.min() ?? 0), color: .primary),
-            StatValue(label: fundFlow.label, value: fundFlow.value, color: fundFlow.color),
+            fundFlow,
         ]
         let secondaryStats: [StatValue?] = [
             StatValue(
@@ -485,7 +496,21 @@ struct StockChartView: View {
 
     @ViewBuilder
     private func statItemView(_ item: StatValue) -> some View {
-        if let helpText = item.helpText {
+        if item.showsFundFlowDetail {
+            statItem(label: item.label, value: item.value, valueColor: item.color)
+                .frame(width: 58, height: 26)
+                .contentShape(Rectangle())
+                .onHover { isFundFlowDetailHovered = $0 }
+                .overlay(alignment: .bottomTrailing) {
+                    if isFundFlowDetailHovered {
+                        fundFlowDetailCard
+                            .fixedSize(horizontal: true, vertical: true)
+                            .offset(y: -30)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .zIndex(isFundFlowDetailHovered ? 20 : 0)
+        } else if let helpText = item.helpText {
             let tooltipAlignment: Alignment = item.label == "盘面" ? .topTrailing : .top
             let tooltipOffset = -CGFloat(helpText.split(separator: "\n").count * 12 + 12)
             statItem(label: item.label, value: item.value, valueColor: item.color)
@@ -530,22 +555,210 @@ struct StockChartView: View {
         return .primary
     }
 
-    private var fundFlowStat: (label: String, value: String, color: Color) {
+    private var fundFlowStat: StatValue {
         guard stock.market == .aStock else {
-            return ("资金", "--", .secondary)
+            return StatValue(label: "资金", value: "--", color: .secondary)
         }
         guard let snapshot = fundFlowSnapshot else {
-            return ("资金", "--", .secondary)
+            return StatValue(label: "资金", value: "--", color: .secondary)
         }
 
         let amount = snapshot.mainNetInflow
         if amount > 0 {
-            return ("净流入", formattedFundAmount(amount), Color(appState.config.upColorName))
+            return StatValue(
+                label: "净流入",
+                value: formattedFundAmount(amount),
+                color: Color(appState.config.upColorName),
+                showsFundFlowDetail: true
+            )
         }
         if amount < 0 {
-            return ("净流出", formattedFundAmount(abs(amount)), Color(appState.config.downColorName))
+            return StatValue(
+                label: "净流出",
+                value: formattedFundAmount(abs(amount)),
+                color: Color(appState.config.downColorName),
+                showsFundFlowDetail: true
+            )
         }
-        return ("净流入", formattedFundAmount(0), .secondary)
+        return StatValue(
+            label: "净流入",
+            value: formattedFundAmount(0),
+            color: .secondary,
+            showsFundFlowDetail: true
+        )
+    }
+
+    @ViewBuilder
+    private var fundFlowDetailCard: some View {
+        if let snapshot = fundFlowSnapshot {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("资金流向")
+                        .font(.system(size: 10, weight: .semibold))
+                    Spacer()
+                    if !snapshot.updateTime.isEmpty {
+                        Text(String(snapshot.updateTime.suffix(8)))
+                            .font(.system(size: 8, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                fundFlowBreakdownTable(snapshot.orderFlows)
+
+                Divider()
+
+                Text("主力分时净流向（30分钟）")
+                    .font(.system(size: 9, weight: .medium))
+
+                fundFlowPeriodChart
+            }
+            .padding(6)
+            .frame(width: 296)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay {
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
+            }
+            .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
+        }
+    }
+
+    private func fundFlowBreakdownTable(_ flows: [FundFlowOrderSnapshot]) -> some View {
+        VStack(spacing: 0) {
+            fundFlowTableHeader
+                .background(Color.secondary.opacity(0.10))
+
+            ForEach(flows) { flow in
+                Divider()
+                fundFlowTableRow(flow)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+    }
+
+    private var fundFlowTableHeader: some View {
+        HStack(spacing: 0) {
+            fundFlowTableCell("类型", width: 40, alignment: .leading)
+            fundFlowTableCell("流入", width: 56)
+            fundFlowTableCell("流出", width: 56)
+            fundFlowTableCell("净额", width: 80)
+            fundFlowTableCell("净占比", width: 52)
+        }
+        .font(.system(size: 8, weight: .medium))
+        .foregroundStyle(.secondary)
+        .frame(height: 18)
+    }
+
+    private func fundFlowTableRow(_ flow: FundFlowOrderSnapshot) -> some View {
+        HStack(spacing: 0) {
+            fundFlowTableCell(flow.size.rawValue, width: 40, alignment: .leading)
+                .foregroundStyle(.primary)
+            fundFlowTableCell(formattedOptionalFundAmount(flow.inflow), width: 56)
+                .foregroundStyle(Color(appState.config.upColorName))
+            fundFlowTableCell(formattedOptionalFundAmount(flow.outflow), width: 56)
+                .foregroundStyle(Color(appState.config.downColorName))
+            fundFlowTableCell(fundFlowNetText(flow.netInflow), width: 80)
+                .foregroundStyle(fundFlowAmountColor(flow.netInflow))
+            fundFlowTableCell(formattedSignedPercent(flow.netRatio), width: 52)
+                .foregroundStyle(fundFlowAmountColor(flow.netRatio))
+        }
+        .font(.system(size: 8, design: .monospaced))
+        .frame(height: 18)
+    }
+
+    private func fundFlowTableCell(
+        _ text: String,
+        width: CGFloat,
+        alignment: Alignment = .trailing
+    ) -> some View {
+        Text(text)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+            .padding(.horizontal, 2)
+            .frame(width: width, alignment: alignment)
+    }
+
+    @ViewBuilder
+    private var fundFlowPeriodChart: some View {
+        let periods = FundFlowService.aggregateMainFundFlowByThirtyMinutes(fundFlowTrend)
+        if periods.isEmpty {
+            Text("暂无分时资金数据")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 84)
+        } else {
+            let maxMagnitude = max(periods.map { abs($0.netInflow) }.max() ?? 0, 1)
+            Chart {
+                RuleMark(y: .value("零轴", 0))
+                    .foregroundStyle(Color.secondary.opacity(0.45))
+                    .lineStyle(StrokeStyle(lineWidth: 0.6))
+
+                ForEach(periods) { period in
+                    BarMark(
+                        x: .value("时段", period.startTime),
+                        y: .value("净流向", period.netInflow)
+                    )
+                    .foregroundStyle(fundFlowAmountColor(period.netInflow))
+                    .cornerRadius(1.5)
+                    .annotation(
+                        position: period.netInflow >= 0 ? .top : .bottom,
+                        spacing: 1
+                    ) {
+                        Text(formattedSignedFundAmount(period.netInflow))
+                            .font(.system(size: 6.5, weight: .medium, design: .monospaced))
+                            .foregroundStyle(fundFlowAmountColor(period.netInflow))
+                            .fixedSize()
+                    }
+                }
+            }
+            .chartYScale(domain: (-maxMagnitude * 1.32)...(maxMagnitude * 1.32))
+            .chartYAxis(.hidden)
+            .chartXAxis {
+                AxisMarks(values: periods.map(\.startTime)) { value in
+                    AxisValueLabel {
+                        if let label = value.as(String.self) {
+                            Text(label.hasPrefix("0") ? String(label.dropFirst()) : label)
+                                .font(.system(size: 6.5, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .frame(height: 84)
+        }
+    }
+
+    private func formattedOptionalFundAmount(_ amount: Double?) -> String {
+        guard let amount else { return "--" }
+        return formattedFundAmount(amount)
+    }
+
+    private func fundFlowNetText(_ amount: Double?) -> String {
+        guard let amount else { return "--" }
+        if amount > 0 { return "净流入\(formattedFundAmount(amount))" }
+        if amount < 0 { return "净流出\(formattedFundAmount(amount))" }
+        return "净流入0"
+    }
+
+    private func formattedSignedFundAmount(_ amount: Double) -> String {
+        if amount > 0 { return "+\(formattedFundAmount(amount))" }
+        if amount < 0 { return "-\(formattedFundAmount(amount))" }
+        return "0"
+    }
+
+    private func formattedSignedPercent(_ value: Double?) -> String {
+        guard let value else { return "--" }
+        let sign = value > 0 ? "+" : ""
+        return String(format: "\(sign)%.2f%%", value)
+    }
+
+    private func fundFlowAmountColor(_ amount: Double?) -> Color {
+        guard let amount else { return .secondary }
+        if amount > 0 { return Color(appState.config.upColorName) }
+        if amount < 0 { return Color(appState.config.downColorName) }
+        return .secondary
     }
 
     private var intradaySignalStat: StatValue {
@@ -830,8 +1043,11 @@ struct StockChartView: View {
         guard stock.market == .aStock else { return }
         if fundFlowStockId != stock.id {
             fundFlowSnapshot = nil
+            fundFlowTrend = []
             sectorSnapshot = nil
             fundFlowLoadedAt = nil
+            fundFlowTrendLoadedAt = nil
+            isFundFlowDetailHovered = false
             fundFlowStockId = stock.id
         }
 
@@ -854,14 +1070,22 @@ struct StockChartView: View {
         isFundFlowLoading = true
         defer { isFundFlowLoading = false }
 
+        let shouldFetchTrend = fundFlowTrendLoadedAt.map {
+            Date().timeIntervalSince($0) >= 30
+        } ?? true
         async let nextFundFlow = fetchFundFlowSnapshot()
+        async let nextTrend = fetchFundFlowTrendIfNeeded(shouldFetchTrend)
         async let nextSectors = fetchSectorSnapshots()
-        let (fundFlow, sectors) = await (nextFundFlow, nextSectors)
+        let (fundFlow, trend, sectors) = await (nextFundFlow, nextTrend, nextSectors)
 
         guard !Task.isCancelled else { return }
         if let fundFlow {
             fundFlowSnapshot = fundFlow
             fundFlowLoadedAt = Date()
+        }
+        if let trend {
+            fundFlowTrend = trend
+            fundFlowTrendLoadedAt = Date()
         }
         if let sectors {
             let primarySectorName = fundFlow?.primarySectorName ?? fundFlowSnapshot?.primarySectorName
@@ -902,6 +1126,18 @@ struct StockChartView: View {
             return nil
         } catch {
             logToFile("StockChartView: load fund flow failed for \(stock.id): \(error)")
+            return nil
+        }
+    }
+
+    private func fetchFundFlowTrendIfNeeded(_ shouldFetch: Bool) async -> [FundFlowMinutePoint]? {
+        guard shouldFetch else { return nil }
+        do {
+            return try await FundFlowService.fetchAStockFundFlowTrend(stock: stock)
+        } catch is CancellationError {
+            return nil
+        } catch {
+            logToFile("StockChartView: load fund flow trend failed for \(stock.id): \(error)")
             return nil
         }
     }

@@ -1,12 +1,49 @@
 import Foundation
 
+enum FundFlowOrderSize: String, CaseIterable, Equatable {
+    case superLarge = "超大单"
+    case large = "大单"
+    case medium = "中单"
+    case small = "小单"
+}
+
+struct FundFlowOrderSnapshot: Equatable, Identifiable {
+    let size: FundFlowOrderSize
+    let inflow: Double?
+    let outflow: Double?
+    let netInflow: Double?
+    let netRatio: Double?
+
+    var id: FundFlowOrderSize { size }
+}
+
 struct FundFlowSnapshot {
     let mainNetInflow: Double
+    let orderFlows: [FundFlowOrderSnapshot]
     let turnoverRate: Double?
     let volumeRatio: Double?
     let amplitude: Double?
     let updateTime: String
     let primarySectorName: String?
+}
+
+struct FundFlowMinutePoint: Equatable, Identifiable {
+    let time: String
+    let mainNetInflow: Double
+    let smallNetInflow: Double
+    let mediumNetInflow: Double
+    let largeNetInflow: Double
+    let superLargeNetInflow: Double
+
+    var id: String { time }
+}
+
+struct FundFlowPeriodSnapshot: Equatable, Identifiable {
+    let startTime: String
+    let endTime: String
+    let netInflow: Double
+
+    var id: String { startTime }
 }
 
 enum TurnoverRateLevel: Equatable {
@@ -87,7 +124,7 @@ final class FundFlowService {
         guard stock.market == .aStock,
               let secid = eastmoneySecid(for: stock.id) else { return nil }
 
-        let fields = "f1,f2,f3,f7,f8,f10,f12,f13,f14,f62,f66,f69,f72,f75,f78,f81,f84,f87,f100,f124"
+        let fields = "f1,f2,f3,f7,f8,f10,f12,f13,f14,f62,f64,f65,f66,f69,f70,f71,f72,f75,f76,f77,f78,f81,f82,f83,f84,f87,f100,f124"
         let urlString = "https://push2delay.eastmoney.com/api/qt/ulist.np/get?fltt=2&secids=\(secid)&fields=\(fields)"
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
 
@@ -101,12 +138,33 @@ final class FundFlowService {
         }
         return FundFlowSnapshot(
             mainNetInflow: parsed.mainNetInflow,
+            orderFlows: parsed.orderFlows,
             turnoverRate: parsed.turnoverRate,
             volumeRatio: parsed.volumeRatio,
             amplitude: parsed.amplitude,
             updateTime: parsed.updateTime,
             primarySectorName: parsed.primarySectorName
         )
+    }
+
+    static func fetchAStockFundFlowTrend(stock: Stock) async throws -> [FundFlowMinutePoint]? {
+        guard stock.market == .aStock,
+              let secid = eastmoneySecid(for: stock.id) else { return nil }
+
+        let fields1 = "f1,f2,f3,f7"
+        let fields2 = "f51,f52,f53,f54,f55,f56"
+        let urlString = "https://push2.eastmoney.com/api/qt/stock/fflow/kline/get?lmt=0&klt=1&fields1=\(fields1)&fields2=\(fields2)&secid=\(secid)"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("https://data.eastmoney.com/", forHTTPHeaderField: "Referer")
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let points = parseEastmoneyFundFlowTrend(data) else {
+            throw URLError(.cannotParseResponse)
+        }
+        return points
     }
 
     static func fetchAStockSectors(stock: Stock) async throws -> [SectorSnapshot]? {
@@ -134,7 +192,8 @@ final class FundFlowService {
         volumeRatio: Double?,
         amplitude: Double?,
         updateTime: String,
-        primarySectorName: String?
+        primarySectorName: String?,
+        orderFlows: [FundFlowOrderSnapshot]
     )? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let dataObj = root["data"] as? [String: Any],
@@ -149,8 +208,106 @@ final class FundFlowService {
             numericValue(item["f10"]),
             numericValue(item["f7"]),
             formatEastmoneyTimestamp(item["f124"]),
-            primarySectorName
+            primarySectorName,
+            [
+                FundFlowOrderSnapshot(
+                    size: .superLarge,
+                    inflow: numericValue(item["f64"]),
+                    outflow: numericValue(item["f65"]),
+                    netInflow: numericValue(item["f66"]),
+                    netRatio: numericValue(item["f69"])
+                ),
+                FundFlowOrderSnapshot(
+                    size: .large,
+                    inflow: numericValue(item["f70"]),
+                    outflow: numericValue(item["f71"]),
+                    netInflow: numericValue(item["f72"]),
+                    netRatio: numericValue(item["f75"])
+                ),
+                FundFlowOrderSnapshot(
+                    size: .medium,
+                    inflow: numericValue(item["f76"]),
+                    outflow: numericValue(item["f77"]),
+                    netInflow: numericValue(item["f78"]),
+                    netRatio: numericValue(item["f81"])
+                ),
+                FundFlowOrderSnapshot(
+                    size: .small,
+                    inflow: numericValue(item["f82"]),
+                    outflow: numericValue(item["f83"]),
+                    netInflow: numericValue(item["f84"]),
+                    netRatio: numericValue(item["f87"])
+                ),
+            ]
         )
+    }
+
+    static func parseEastmoneyFundFlowTrend(_ data: Data) -> [FundFlowMinutePoint]? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dataObj = root["data"] as? [String: Any],
+              let klines = dataObj["klines"] as? [String] else { return nil }
+
+        let points = klines.compactMap { line -> FundFlowMinutePoint? in
+            let values = line.split(separator: ",", omittingEmptySubsequences: false)
+            guard values.count >= 6,
+                  let mainNetInflow = Double(values[1]),
+                  let smallNetInflow = Double(values[2]),
+                  let mediumNetInflow = Double(values[3]),
+                  let largeNetInflow = Double(values[4]),
+                  let superLargeNetInflow = Double(values[5]) else { return nil }
+
+            return FundFlowMinutePoint(
+                time: String(values[0]),
+                mainNetInflow: mainNetInflow,
+                smallNetInflow: smallNetInflow,
+                mediumNetInflow: mediumNetInflow,
+                largeNetInflow: largeNetInflow,
+                superLargeNetInflow: superLargeNetInflow
+            )
+        }
+
+        return points.isEmpty ? nil : points
+    }
+
+    static func aggregateMainFundFlowByThirtyMinutes(
+        _ points: [FundFlowMinutePoint]
+    ) -> [FundFlowPeriodSnapshot] {
+        let periods: [(start: Int, end: Int, startLabel: String, endLabel: String)] = [
+            (570, 600, "09:30", "10:00"),
+            (600, 630, "10:00", "10:30"),
+            (630, 660, "10:30", "11:00"),
+            (660, 690, "11:00", "11:30"),
+            (780, 810, "13:00", "13:30"),
+            (810, 840, "13:30", "14:00"),
+            (840, 870, "14:00", "14:30"),
+            (870, 900, "14:30", "15:00"),
+        ]
+        let samples = points.compactMap { point -> (minute: Int, amount: Double)? in
+            guard let minute = minuteOfDay(point.time) else { return nil }
+            return (minute, point.mainNetInflow)
+        }.sorted { $0.minute < $1.minute }
+
+        return periods.compactMap { period in
+            guard let endSample = samples.last(where: {
+                $0.minute > period.start && $0.minute <= period.end
+            }) else { return nil }
+
+            let baseline: Double
+            if period.start == periods[0].start {
+                baseline = 0
+            } else {
+                guard let startSample = samples.last(where: { $0.minute <= period.start }) else {
+                    return nil
+                }
+                baseline = startSample.amount
+            }
+
+            return FundFlowPeriodSnapshot(
+                startTime: period.startLabel,
+                endTime: period.endLabel,
+                netInflow: endSample.amount - baseline
+            )
+        }
     }
 
     static func parseEastmoneySector(_ data: Data) -> SectorSnapshot? {
@@ -200,6 +357,15 @@ final class FundFlowService {
         if let value = value as? NSNumber { return value.doubleValue }
         if let value = value as? String { return Double(value) }
         return nil
+    }
+
+    private static func minuteOfDay(_ value: String) -> Int? {
+        guard let time = value.split(separator: " ").last else { return nil }
+        let parts = time.split(separator: ":")
+        guard parts.count >= 2,
+              let hour = Int(parts[0]),
+              let minute = Int(parts[1]) else { return nil }
+        return hour * 60 + minute
     }
 
     private static func sectorItems(from value: Any?) -> [[String: Any]]? {
