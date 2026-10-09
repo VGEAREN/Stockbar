@@ -201,7 +201,7 @@ final class AppState: ObservableObject {
             async let hkResult        = DataService.fetchTencentHKQuotes(codes: hkCodes)
             async let krResult        = DataService.fetchKoreanQuotes(ids: krIds)
             async let ratesResult     = CurrencyService.fetchRates()
-            async let overnightResult = PythService.fetchOvernightPrices(codes: usCodes)
+            async let overnightResult = OvernightService.fetchOvernightPrices(codes: usCodes)
 
             let (s, h) = try await (sinaResult, hkResult)
             let kr        = await krResult
