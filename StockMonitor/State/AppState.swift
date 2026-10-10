@@ -365,10 +365,9 @@ final class AppState: ObservableObject {
 
     // MARK: - 美股交易时段
 
-    static func usMarketSession() -> String? {
+    nonisolated static func usMarketSession(at now: Date = Date()) -> String? {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "America/New_York")!
-        let now   = Date()
         let comps = cal.dateComponents([.weekday, .hour, .minute], from: now)
         // Swift Calendar weekday: 1=周日, 2=周一, 3=周二, ..., 6=周五, 7=周六
         let wd = comps.weekday ?? 1
@@ -376,8 +375,8 @@ final class AppState: ObservableObject {
         switch t {
         case 0..<240:
             // ET 00:00–04:00 凌晨段（前一晚夜盘延续）
-            // 周一凌晨(wd=2)=周日夜盘, 周二~周五凌晨(wd=3~6), 周六凌晨(wd=7)=周五夜盘
-            guard wd >= 2 else { return nil }  // 周日凌晨无交易
+            // 夜盘只在周日~周四晚开（Blue Ocean ATS 周五晚不开）：周一凌晨(wd=2)=周日夜盘 … 周五凌晨(wd=6)=周四夜盘
+            guard wd >= 2, wd <= 6 else { return nil }  // 周六、周日凌晨无夜盘
             return "夜盘"
         case 240..<570:
             guard wd >= 2, wd <= 6 else { return nil }  // 周一~周五
@@ -390,8 +389,8 @@ final class AppState: ObservableObject {
             return "盘后"    // ET 16:00–20:00
         case 1200..<1440:
             // ET 20:00–24:00 晚间段
-            // 周日晚(wd=1)=周一夜盘开始, 周一~周五晚(wd=2~6)
-            guard wd >= 1, wd <= 6 else { return nil }  // 仅排除周六晚(wd=7)
+            // 周日晚(wd=1)=周一夜盘开始, 周一~周四晚(wd=2~5)
+            guard wd >= 1, wd <= 5 else { return nil }  // 周五、周六晚无夜盘
             return "夜盘"    // ET 20:00–24:00
         default:
             return nil
