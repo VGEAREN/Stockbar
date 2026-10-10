@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var editCost      = ""
     @State private var editShares    = ""
     @State private var newWatchlistName = ""
+    @State private var volatilityThresholdText = ""
 
     struct SearchResult: Identifiable {
         let id: String; let name: String; let market: Market
@@ -49,10 +50,27 @@ struct SettingsView: View {
                         Text("日盈亏 + 总盈亏").tag("__both_pnl__")
                         Divider()
                         Text("（自动选第一只）").tag("")
+                        Text("（自动选波动大的）").tag("__most_volatile__")
                         ForEach(appState.stocks) { s in
                             Text("\(s.name)  \(s.id)").tag(s.id)
                         }
                     }.pickerStyle(.menu)
+
+                    HStack {
+                        Text("价格左侧标识").font(.system(size: 12))
+                        Spacer()
+                        Picker("", selection: Binding(
+                            get: { appState.statusBarIconMode },
+                            set: { appState.statusBarIconMode = $0 }
+                        )) {
+                            ForEach(StatusBarIconMode.allCases, id: \.rawValue) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 110)
+                    }
+                    .padding(.leading, 8)
                 }
 
                 // 持仓股分组
@@ -150,6 +168,94 @@ struct SettingsView: View {
                             Text("\(i) 秒").tag(i)
                         }
                     }.pickerStyle(.segmented)
+                }
+
+                // 资金刷新间隔
+                section("资金刷新间隔") {
+                    Picker("", selection: Binding(
+                        get: { appState.config.fundFlowRefreshInterval },
+                        set: { appState.config.fundFlowRefreshInterval = $0 }
+                    )) {
+                        ForEach(AppSettings.validFundFlowRefreshIntervals, id: \.self) { i in
+                            Text("\(i) 秒").tag(i)
+                        }
+                    }.pickerStyle(.segmented)
+                }
+
+                // 免打扰时段
+                section("免打扰时段") {
+                    Toggle("启用免打扰", isOn: Binding(
+                        get: { appState.config.doNotDisturbEnabled },
+                        set: { appState.config.doNotDisturbEnabled = $0 }
+                    ))
+                    .padding(.leading, 8)
+
+                    VStack(spacing: 6) {
+                        timePickerRow(
+                            title: "开始",
+                            minutes: Binding(
+                                get: { appState.config.doNotDisturbStartMinutes },
+                                set: { appState.config.doNotDisturbStartMinutes = $0 }
+                            )
+                        )
+                        timePickerRow(
+                            title: "结束",
+                            minutes: Binding(
+                                get: { appState.config.doNotDisturbEndMinutes },
+                                set: { appState.config.doNotDisturbEndMinutes = $0 }
+                            )
+                        )
+                    }
+                    .padding(.leading, 8)
+                    .disabled(!appState.config.doNotDisturbEnabled)
+                    .opacity(appState.config.doNotDisturbEnabled ? 1 : 0.55)
+                }
+
+                // 波动提醒
+                section("波动提醒") {
+                    Toggle("启用波动提醒", isOn: Binding(
+                        get: { appState.config.volatilityAlertEnabled },
+                        set: { enabled in
+                            appState.config.volatilityAlertEnabled = enabled
+                            if enabled {
+                                Task { await VolatilityAlertService.shared.requestAuthorization() }
+                            }
+                        }
+                    ))
+                    .padding(.leading, 8)
+
+                    Stepper(
+                        onIncrement: {
+                            adjustVolatilityThreshold(by: AppSettings.volatilityAlertThresholdStep)
+                        },
+                        onDecrement: {
+                            adjustVolatilityThreshold(by: -AppSettings.volatilityAlertThresholdStep)
+                        },
+                        label: {
+                            HStack(spacing: 6) {
+                                Text("波动阈值").font(.system(size: 12))
+                                Spacer()
+                                TextField("0.8", text: Binding(
+                                    get: { volatilityThresholdText },
+                                    set: { updateVolatilityThresholdText($0) }
+                                ))
+                                .textFieldStyle(.roundedBorder)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 58)
+                                Text("%").font(.system(size: 12))
+                            }
+                        }
+                    )
+                    .onAppear {
+                        if volatilityThresholdText.isEmpty {
+                            volatilityThresholdText = formatVolatilityThreshold(
+                                appState.config.volatilityAlertThreshold
+                            )
+                        }
+                    }
+                    .padding(.leading, 8)
+                    .disabled(!appState.config.volatilityAlertEnabled)
+                    .opacity(appState.config.volatilityAlertEnabled ? 1 : 0.55)
                 }
 
                 // 涨跌颜色
@@ -308,6 +414,50 @@ struct SettingsView: View {
             .overlay(RoundedRectangle(cornerRadius: 6)
                 .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 1.5))
         }.buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func timePickerRow(title: String, minutes: Binding<Int>) -> some View {
+        HStack {
+            Text(title).font(.system(size: 12))
+            Spacer()
+            DatePicker("", selection: Binding(
+                get: { dateForMinutes(minutes.wrappedValue) },
+                set: { minutes.wrappedValue = minutesFromDate($0) }
+            ), displayedComponents: .hourAndMinute)
+            .labelsHidden()
+            .datePickerStyle(.compact)
+            .frame(width: 92)
+        }
+    }
+
+    private func dateForMinutes(_ minutes: Int) -> Date {
+        let validMinutes = AppSettings.validMinute(minutes) ?? 0
+        let startOfDay = Calendar.current.startOfDay(for: Date())
+        return Calendar.current.date(byAdding: .minute, value: validMinutes, to: startOfDay) ?? startOfDay
+    }
+
+    private func minutesFromDate(_ date: Date) -> Int {
+        let comps = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+    }
+
+    private func updateVolatilityThresholdText(_ text: String) {
+        volatilityThresholdText = text
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard let value = Double(trimmed), value.isFinite else { return }
+        appState.config.volatilityAlertThreshold = value
+    }
+
+    private func adjustVolatilityThreshold(by delta: Double) {
+        let value = appState.config.volatilityAlertThreshold + delta
+        appState.config.volatilityAlertThreshold = value
+        volatilityThresholdText = formatVolatilityThreshold(value)
+    }
+
+    private func formatVolatilityThreshold(_ value: Double) -> String {
+        guard value.isFinite else { return "" }
+        return String(value)
     }
 
     @ViewBuilder

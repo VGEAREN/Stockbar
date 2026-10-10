@@ -7,7 +7,7 @@ struct StockRowView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        HStack(alignment: .center, spacing: 0) {
+        HStack(alignment: .center, spacing: 6) {
             // 左侧：名称 + 代码
             VStack(alignment: .leading, spacing: 1) {
                 Text(stock.name)
@@ -17,7 +17,17 @@ struct StockRowView: View {
                     .font(.system(size: 9))
                     .foregroundColor(.secondary)
             }
-            Spacer(minLength: 4)
+            .frame(width: 96, alignment: .leading)
+
+            MiniIntradayChartView(
+                market: stock.market,
+                snapshot: appState.intradayCharts[stock.id],
+                quote: quote,
+                upColor: Color(appState.config.upColorName),
+                downColor: Color(appState.config.downColorName)
+            )
+            .frame(minWidth: 64, maxWidth: .infinity, minHeight: 26, maxHeight: 26)
+
             // 右侧：行情 + 盈亏
             if let q = quote {
                 VStack(alignment: .trailing, spacing: 1) {
@@ -66,10 +76,12 @@ struct StockRowView: View {
                         }
                     }
                 }
+                .fixedSize(horizontal: true, vertical: false)
             } else {
                 Text("--")
                     .foregroundColor(.secondary)
                     .font(.system(size: 12))
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
         .padding(.horizontal, 6)
@@ -78,5 +90,8 @@ struct StockRowView: View {
         .cornerRadius(4)
         .contentShape(Rectangle())
         .onTapGesture { onTap?() }
+        .task(id: stock.id) {
+            await appState.loadIntradayIfNeeded(for: stock)
+        }
     }
 }

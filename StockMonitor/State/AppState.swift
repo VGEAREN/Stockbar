@@ -3,13 +3,29 @@ import Combine
 import AppKit
 import os
 
+struct VolatilityAlertCandidate: Equatable {
+    let stockId: String
+    let stockName: String
+    let changePercent: Double
+    let threshold: Double
+}
+
+struct IntradayChartSnapshot {
+    let points: [MinutePoint]
+    let preClose: Double
+    let loadedAt: Date
+}
+
 @MainActor
 final class AppState: ObservableObject {
 
     // MARK: - 持久化（settings.json）
 
     @Published var config: AppSettings = AppSettings() {
-        didSet { saveSettings(config) }
+        didSet {
+            handleVolatilityAlertConfigChange(from: oldValue)
+            saveSettings(config)
+        }
     }
 
     // MARK: - 持久化（stocks.json）
@@ -31,6 +47,9 @@ final class AppState: ObservableObject {
     @Published var isLoading: Bool              = false
     @Published var lastUpdateTime: Date?        = nil
     @Published var hasError: Bool               = false
+    @Published private(set) var intradayCharts: [String: IntradayChartSnapshot] = [:]
+    @Published private(set) var manualRefreshToken: Int = 0
+    @Published private var clockNow: Date       = Date()
 
     // MARK: - 文件路径
     //
@@ -131,6 +150,11 @@ final class AppState: ObservableObject {
         set { config.statusBarStockId = newValue }
     }
 
+    var statusBarIconMode: StatusBarIconMode {
+        get { config.statusBarIconMode }
+        set { config.statusBarIconMode = newValue }
+    }
+
     var refreshInterval: Int {
         get { config.refreshInterval }
         set { config.refreshInterval = newValue }
@@ -149,6 +173,12 @@ final class AppState: ObservableObject {
     // MARK: - 刷新调度
 
     private var scheduler: RefreshScheduler?
+    private var clockTimer: Timer?
+    private var volatilityAlertedStockIds = Set<String>()
+    private var intradayLoadingStockIds = Set<String>()
+    private var intradayFailureDates: [String: Date] = [:]
+    private let intradayCacheTTL: TimeInterval = 180
+    private let intradayFailureCooldown: TimeInterval = 180
 
     init() {
         appLogger.info("AppState init start")
@@ -158,6 +188,7 @@ final class AppState: ObservableObject {
         _watchlists = Published(wrappedValue: Self.loadWatchlists())
         appLogger.info("AppState stocks loaded: \(self.stocks.count)")
         logToFile("AppState stocks loaded: \(self.stocks.count)")
+        setupClockTimer()
         setupScheduler()
         appLogger.info("AppState init complete")
         logToFile("AppState init complete")
@@ -170,8 +201,17 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func setupClockTimer() {
+        clockTimer?.invalidate()
+        clockTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.clockNow = Date()
+            }
+        }
+    }
+
     func setupScheduler() {
-        scheduler = RefreshScheduler { [weak self] in await self?.refresh() }
+        scheduler = RefreshScheduler { [weak self] in await self?.refreshAutomatically() }
         scheduler?.start(interval: TimeInterval(refreshInterval))
     }
 
@@ -180,9 +220,17 @@ final class AppState: ObservableObject {
         setupScheduler()
     }
 
-    func forceRefresh() { scheduler?.forceRefresh() }
+    func forceRefresh() {
+        manualRefreshToken &+= 1
+        Task { await refresh() }
+    }
 
     // MARK: - 数据拉取
+
+    private func refreshAutomatically() async {
+        guard !isDoNotDisturbActive else { return }
+        await refresh()
+    }
 
     func refresh() async {
         isLoading = true
@@ -221,11 +269,173 @@ final class AppState: ObservableObject {
             quotes.merge(kr) { $1 }
             exchangeRates  = rates
             lastUpdateTime = Date()
+            checkVolatilityAlerts()
             syncStockNamesFromQuotes()
+            refreshCachedIntradayChartsIfNeeded()
         } catch {
             hasError = true
         }
         isLoading = false
+    }
+
+    func loadIntradayIfNeeded(for stock: Stock) async {
+        let now = Date()
+        if let snapshot = intradayCharts[stock.id],
+           now.timeIntervalSince(snapshot.loadedAt) < intradayCacheTTL {
+            return
+        }
+        if intradayLoadingStockIds.contains(stock.id) {
+            return
+        }
+        if let failedAt = intradayFailureDates[stock.id],
+           now.timeIntervalSince(failedAt) < intradayFailureCooldown {
+            return
+        }
+
+        intradayLoadingStockIds.insert(stock.id)
+        defer { intradayLoadingStockIds.remove(stock.id) }
+
+        do {
+            let result = try await ChartService.fetchIntraday(stock: stock)
+            let preClose = result.preClose > 0
+                ? result.preClose
+                : (quotes[stock.id]?.previousClose ?? 0)
+            intradayCharts[stock.id] = IntradayChartSnapshot(
+                points: result.points,
+                preClose: preClose,
+                loadedAt: Date()
+            )
+            intradayFailureDates.removeValue(forKey: stock.id)
+        } catch is CancellationError {
+            return
+        } catch {
+            intradayFailureDates[stock.id] = Date()
+        }
+    }
+
+    private func refreshCachedIntradayChartsIfNeeded() {
+        let cachedIds = Set(intradayCharts.keys)
+        guard !cachedIds.isEmpty else { return }
+
+        for stock in stocks where cachedIds.contains(stock.id) {
+            Task { await loadIntradayIfNeeded(for: stock) }
+        }
+    }
+
+    // MARK: - 免打扰
+
+    var isDoNotDisturbActive: Bool {
+        isDoNotDisturbActive(at: clockNow)
+    }
+
+    func isDoNotDisturbActive(at date: Date) -> Bool {
+        guard config.doNotDisturbEnabled else { return false }
+        return Self.isDoNotDisturbActive(
+            minuteOfDay: Self.minuteOfDay(from: date),
+            startMinutes: config.doNotDisturbStartMinutes,
+            endMinutes: config.doNotDisturbEndMinutes
+        )
+    }
+
+    nonisolated static func isDoNotDisturbActive(
+        minuteOfDay: Int,
+        startMinutes: Int,
+        endMinutes: Int
+    ) -> Bool {
+        guard let minute = AppSettings.validMinute(minuteOfDay),
+              let start = AppSettings.validMinute(startMinutes),
+              let end = AppSettings.validMinute(endMinutes) else { return false }
+
+        if start == end { return true }
+        if start < end {
+            return (start..<end).contains(minute)
+        }
+        return minute >= start || minute < end
+    }
+
+    private nonisolated static func minuteOfDay(from date: Date) -> Int {
+        let cal = Calendar.current
+        let comps = cal.dateComponents([.hour, .minute], from: date)
+        return (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+    }
+
+    // MARK: - 波动提醒
+
+    private func handleVolatilityAlertConfigChange(from oldValue: AppSettings) {
+        if oldValue.volatilityAlertEnabled != config.volatilityAlertEnabled
+            || oldValue.volatilityAlertThreshold != config.volatilityAlertThreshold {
+            volatilityAlertedStockIds.removeAll()
+        }
+
+        if !config.volatilityAlertEnabled {
+            volatilityAlertedStockIds.removeAll()
+        }
+    }
+
+    private func checkVolatilityAlerts() {
+        guard config.volatilityAlertEnabled else {
+            volatilityAlertedStockIds.removeAll()
+            return
+        }
+
+        let threshold = config.volatilityAlertThreshold
+        let candidates = Self.volatilityAlertCandidates(
+            stocks: stocks,
+            quotes: quotes,
+            threshold: threshold,
+            alertedStockIds: volatilityAlertedStockIds
+        )
+        volatilityAlertedStockIds = Self.volatilityAlertActiveStockIds(
+            stocks: stocks,
+            quotes: quotes,
+            threshold: threshold
+        )
+
+        for candidate in candidates {
+            Task {
+                await VolatilityAlertService.shared.notify(
+                    stockName: candidate.stockName,
+                    stockId: candidate.stockId,
+                    changePercent: candidate.changePercent,
+                    threshold: candidate.threshold
+                )
+            }
+        }
+    }
+
+    nonisolated static func volatilityAlertCandidates(
+        stocks: [Stock],
+        quotes: [String: Quote],
+        threshold: Double,
+        alertedStockIds: Set<String>
+    ) -> [VolatilityAlertCandidate] {
+        guard threshold.isFinite else { return [] }
+        return stocks.compactMap { stock in
+            guard let percent = quotes[stock.id]?.changePercent,
+                  percent.isFinite,
+                  abs(percent) >= threshold,
+                  !alertedStockIds.contains(stock.id) else { return nil }
+            return VolatilityAlertCandidate(
+                stockId: stock.id,
+                stockName: stock.name,
+                changePercent: percent,
+                threshold: threshold
+            )
+        }
+    }
+
+    nonisolated static func volatilityAlertActiveStockIds(
+        stocks: [Stock],
+        quotes: [String: Quote],
+        threshold: Double
+    ) -> Set<String> {
+        guard threshold.isFinite else { return [] }
+        return Set(stocks.compactMap { stock in
+            guard let percent = quotes[stock.id]?.changePercent,
+                  percent.isFinite,
+                  abs(percent) >= threshold else { return nil }
+            return stock.id
+        })
     }
 
     private func syncStockNamesFromQuotes() {
@@ -324,6 +534,9 @@ final class AppState: ObservableObject {
     // MARK: - 状态栏
 
     var statusBarStock: Stock? {
+        if statusBarStockId == "__most_volatile__" {
+            return mostVolatileStock ?? stocks.first
+        }
         if statusBarStockId.hasPrefix("__") { return nil }
         return stocks.first(where: { $0.id == statusBarStockId }) ?? stocks.first
     }
@@ -331,6 +544,22 @@ final class AppState: ObservableObject {
     var statusBarQuote: Quote? {
         guard let s = statusBarStock else { return nil }
         return quotes[s.id]
+    }
+
+    private var mostVolatileStock: Stock? {
+        stocks
+            .compactMap { stock -> (stock: Stock, percent: Double, volatility: Double)? in
+                guard let percent = quotes[stock.id]?.changePercent,
+                      percent.isFinite else { return nil }
+                return (stock, percent, abs(percent))
+            }
+            .max { lhs, rhs in
+                if lhs.volatility != rhs.volatility {
+                    return lhs.volatility < rhs.volatility
+                }
+                return lhs.percent > rhs.percent
+            }?
+            .stock
     }
 
     // MARK: - 颜色辅助
