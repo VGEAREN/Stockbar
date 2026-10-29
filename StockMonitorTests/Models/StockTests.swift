@@ -80,4 +80,39 @@ final class StockTests: XCTestCase {
         XCTAssertEqual(decoded.market, .krStock)
         XCTAssertEqual(decoded.costPrice, 80000.0)
     }
+
+    // MARK: - 到价提醒持久化
+
+    func test_stock_decodesLegacyJSONWithoutAlert() throws {
+        let json = #"{"id":"sh600000","name":"浦发银行","market":"A股","costPrice":8.5,"holdingShares":1000}"#
+        let s = try JSONDecoder().decode(Stock.self, from: Data(json.utf8))
+        XCTAssertNil(s.alert)
+        XCTAssertEqual(s.costPrice, 8.5)
+    }
+
+    func test_stock_codable_roundtrip_withAlert() throws {
+        let stock = Stock(id: "sh600000", name: "浦发银行", market: .aStock, costPrice: nil, holdingShares: nil,
+                          alert: PriceAlert(targetPrice: 9.5, direction: .fall, isEnabled: true))
+        let decoded = try JSONDecoder().decode(Stock.self, from: JSONEncoder().encode(stock))
+        XCTAssertEqual(decoded, stock)
+    }
+
+    func test_stock_corruptAlert_keepsOtherFields() throws {
+        let json = #"{"id":"sh600000","name":"浦发银行","market":"A股","holdingShares":1000,"alert":{"targetPrice":"oops"}}"#
+        let s = try JSONDecoder().decode(Stock.self, from: Data(json.utf8))
+        XCTAssertNil(s.alert)
+        XCTAssertEqual(s.holdingShares, 1000)
+    }
+
+    func test_stockList_oneCorruptAlert_doesNotEmptyTheList() throws {
+        let json = #"[{"id":"sh600000","name":"A","market":"A股","alert":{"targetPrice":"oops"}},{"id":"hk00700","name":"B","market":"港股"}]"#
+        let list = try JSONDecoder().decode([Stock].self, from: Data(json.utf8))
+        XCTAssertEqual(list.map(\.id), ["sh600000", "hk00700"])
+    }
+
+    func test_stock_withoutAlert_doesNotWriteAlertKey() throws {
+        let stock = Stock(id: "sh600000", name: "浦发银行", market: .aStock, costPrice: nil, holdingShares: nil)
+        let json = String(decoding: try JSONEncoder().encode(stock), as: UTF8.self)
+        XCTAssertFalse(json.contains("alert"))
+    }
 }
