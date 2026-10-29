@@ -61,4 +61,42 @@ extension AppState {
         if updated != stocks { stocks = updated }
         for hit in hits { notifier.notifyPriceReached(hit) }
     }
+
+    // MARK: - 编辑页
+
+    /// 编辑页保存时算出新的提醒；目标价为空或无效时返回 nil（= 删除提醒）
+    func editedAlert(for stock: Stock, targetText: String, isEnabled: Bool, now: Date = Date()) -> PriceAlert? {
+        guard let target = PriceAlert.parseTarget(targetText) else { return nil }
+        let current = quotes[stock.id].flatMap { Self.alertPrice(for: stock, quote: $0, now: now)?.price }
+        return PriceAlert.edited(previous: stock.alert, targetPrice: target,
+                                 isEnabled: isEnabled, currentPrice: current)
+    }
+
+    /// 编辑页「保存」：成本 / 股数写当前观察仓或真实持仓；提醒始终写在股票本身（不分观察仓）。
+    /// 返回保存后的提醒，界面据此决定是否申请通知权限
+    @discardableResult
+    func saveEdit(stockId: String, cost: Double?, shares: Double?,
+                  alertTargetText: String, alertEnabled: Bool, now: Date = Date()) -> PriceAlert? {
+        guard let idx = stocks.firstIndex(where: { $0.id == stockId }) else { return nil }
+        var updated = stocks
+        let alert = editedAlert(for: updated[idx], targetText: alertTargetText,
+                                isEnabled: alertEnabled, now: now)
+        if let wlId = config.activeWatchlistId,
+           let wlIdx = watchlists.firstIndex(where: { $0.id == wlId }) {
+            // 写入观察仓
+            if let c = cost, let s = shares {
+                watchlists[wlIdx].entries[stockId] = WatchlistEntry(costPrice: c, holdingShares: s)
+            } else {
+                watchlists[wlIdx].entries.removeValue(forKey: stockId)
+            }
+        } else {
+            // 写入真实持仓
+            updated[idx].costPrice     = cost
+            updated[idx].holdingShares = shares
+        }
+        updated[idx].alert = alert
+        // 成本 / 股数和提醒合并成一次赋值：只保存、备份一次；没变化就不写
+        if updated != stocks { stocks = updated }
+        return alert
+    }
 }

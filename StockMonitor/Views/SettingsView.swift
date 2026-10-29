@@ -14,6 +14,8 @@ struct SettingsView: View {
     @State private var editingStock: Stock?
     @State private var editCost      = ""
     @State private var editShares    = ""
+    @State private var editTarget    = ""
+    @State private var editAlertOn   = false
     @State private var newWatchlistName = ""
 
     struct SearchResult: Identifiable {
@@ -328,6 +330,8 @@ struct SettingsView: View {
                 editingStock = stock
                 editCost     = appState.effectiveCostPrice(for: stock).map { String($0) } ?? ""
                 editShares   = appState.effectiveShares(for: stock).map { String(Int($0)) } ?? ""
+                editTarget   = stock.alert.map { String($0.targetPrice) } ?? ""
+                editAlertOn  = stock.alert?.isEnabled ?? false
             } label: { Image(systemName: "pencil").font(.system(size: 11)) }
             .buttonStyle(.plain)
 
@@ -362,27 +366,19 @@ struct SettingsView: View {
                 Text("持仓股数")
                 TextField("如 1000", text: $editShares).textFieldStyle(.roundedBorder).frame(width: 100)
             }
+            Divider()
+            // 传当前最新的股票（提醒可能在编辑期间被触发关闭）
+            PriceAlertEditor(stock: appState.stocks.first(where: { $0.id == stock.id }) ?? stock,
+                             targetText: $editTarget, isEnabled: $editAlertOn)
             HStack {
                 Button("取消") { editingStock = nil }.buttonStyle(.bordered)
                 Button("保存") {
-                    let cost   = Double(editCost)
-                    let shares = Double(editShares)
-                    if let wlId = appState.config.activeWatchlistId,
-                       let wlIdx = appState.watchlists.firstIndex(where: { $0.id == wlId }) {
-                        // 写入观察仓
-                        if let c = cost, let s = shares {
-                            appState.watchlists[wlIdx].entries[stock.id] = WatchlistEntry(costPrice: c, holdingShares: s)
-                        } else {
-                            appState.watchlists[wlIdx].entries.removeValue(forKey: stock.id)
-                        }
-                    } else {
-                        // 写入真实持仓
-                        if let idx = appState.stocks.firstIndex(where: { $0.id == stock.id }) {
-                            var updated = appState.stocks
-                            updated[idx].costPrice     = cost
-                            updated[idx].holdingShares = shares
-                            appState.stocks = updated
-                        }
+                    let saved = appState.saveEdit(stockId: stock.id,
+                                                  cost: Double(editCost), shares: Double(editShares),
+                                                  alertTargetText: editTarget, alertEnabled: editAlertOn)
+                    // 开着提醒时，第一次在这里申请通知权限
+                    if saved?.isEnabled == true {
+                        Task { await NotificationService.shared.requestAuthorizationIfNeeded() }
                     }
                     editingStock = nil
                 }.buttonStyle(.borderedProminent)
