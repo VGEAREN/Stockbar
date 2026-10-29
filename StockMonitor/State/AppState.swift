@@ -32,6 +32,11 @@ final class AppState: ObservableObject {
     @Published var lastUpdateTime: Date?        = nil
     @Published var hasError: Bool               = false
 
+    // MARK: - 到价提醒
+
+    /// 发到价通知的对象；测试里替换成假实现
+    var notifier: PriceAlertNotifier = NotificationService.shared
+
     // MARK: - 文件路径
     //
     // 测试隔离：把 appSupportDirOverride 设为临时目录，测试就不会写真实用户数据。
@@ -231,6 +236,7 @@ final class AppState: ObservableObject {
             exchangeRates  = rates
             lastUpdateTime = Date()
             syncStockNamesFromQuotes()
+            await checkPriceAlerts()
         } catch {
             hasError = true
         }
