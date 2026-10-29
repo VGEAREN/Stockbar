@@ -51,4 +51,17 @@ final class QuoteTests: XCTestCase {
         let q = Quote(code: "sh600000", price: 9.56, change: 0, changePercent: 0, updateTime: "")
         XCTAssertEqual(q.formattedPrice, "9.560")
     }
+
+    func test_format_sharedRule() {
+        XCTAssertEqual(Quote.format(1688), "1688.00")
+        XCTAssertEqual(Quote.format(10), "10.00")
+        XCTAssertEqual(Quote.format(9.5), "9.500")
+    }
+
+    func test_formattedExtendedPrice_usesSameRule() {
+        var q = Quote(code: "usr_aapl", price: 180, change: 0, changePercent: 0, updateTime: "")
+        XCTAssertNil(q.formattedExtendedPrice)
+        q.extendedPrice = 9.5
+        XCTAssertEqual(q.formattedExtendedPrice, "9.500")
+    }
 }

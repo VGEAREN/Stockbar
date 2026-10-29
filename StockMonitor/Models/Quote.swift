@@ -18,9 +18,7 @@ struct Quote {
     }
 
     var formattedExtendedPrice: String? {
-        guard let p = extendedPrice else { return nil }
-        if p >= 10 { return String(format: "%.2f", p) }
-        return String(format: "%.3f", p)
+        extendedPrice.map(Self.format)
     }
 
     var formattedExtendedPercent: String? {
@@ -50,8 +48,10 @@ struct Quote {
         return String(format: "\(sign)%.2f%%", changePercent)
     }
 
-    var formattedPrice: String {
-        if price >= 10 { return String(format: "%.2f", price) }
-        return String(format: "%.3f", price)
+    var formattedPrice: String { Self.format(price) }
+
+    /// 价格显示规则：≥ 10 保留两位小数，否则三位（列表、到价提醒共用）
+    static func format(_ price: Double) -> String {
+        price >= 10 ? String(format: "%.2f", price) : String(format: "%.3f", price)
     }
 }
