@@ -18,7 +18,8 @@ struct Quote {
     }
 
     var formattedExtendedPrice: String? {
-        extendedPrice.map(Self.format)
+        guard let p = extendedPrice else { return nil }
+        return Self.format(p)
     }
 
     var formattedExtendedPercent: String? {

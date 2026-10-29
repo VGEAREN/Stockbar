@@ -1,6 +1,7 @@
 import XCTest
 @testable import Stockbar
 
+@MainActor
 final class StockTests: XCTestCase {
 
     func test_market_fromCode_aStock() {

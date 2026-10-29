@@ -1,6 +1,7 @@
 import XCTest
 @testable import Stockbar
 
+@MainActor
 final class PriceAlertTests: XCTestCase {
 
     // MARK: - 方向
