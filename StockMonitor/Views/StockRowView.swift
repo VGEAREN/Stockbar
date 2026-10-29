@@ -13,9 +13,16 @@ struct StockRowView: View {
                 Text(stock.name)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
-                Text(stock.id)
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
+                HStack(spacing: 3) {
+                    Text(stock.id)
+                    // 开启了到价提醒：小铃铛 + 方向 + 目标价
+                    if let alert = stock.alert, alert.isEnabled {
+                        Image(systemName: "bell.fill")
+                        Text(alert.badge)
+                    }
+                }
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
             }
             Spacer(minLength: 4)
             // 右侧：行情 + 盈亏

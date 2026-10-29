@@ -175,6 +175,11 @@ struct SettingsView: View {
                     }.pickerStyle(.segmented)
                 }
 
+                // 到价提醒：通知权限 + 测试
+                section("到价提醒") {
+                    PriceAlertPermissionRow()
+                }
+
                 // 开机启动
                 section("开机启动") {
                     Toggle("登录后自动启动", isOn: $launchAtLogin)
@@ -323,6 +328,10 @@ struct SettingsView: View {
                         .font(.caption).foregroundColor(.secondary)
                 } else {
                     Text("未设置持仓").font(.caption).foregroundColor(.secondary)
+                }
+                if let alert = stock.alert, alert.isEnabled {
+                    Label(alert.summary, systemImage: "bell.fill")
+                        .font(.caption).foregroundColor(.accentColor)
                 }
             }
             Spacer()

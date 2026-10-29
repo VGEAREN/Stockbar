@@ -52,3 +52,36 @@ struct PriceAlertEditor: View {
         return "\(pricePart)\(alert.summary) 时提醒"
     }
 }
+
+/// 设置页「到价提醒」分组：通知权限状态 + 测试 / 授权 / 打开系统设置
+@MainActor
+struct PriceAlertPermissionRow: View {
+    @ObservedObject private var notifications = NotificationService.shared
+
+    var body: some View {
+        HStack {
+            Text("通知权限：\(statusText)").font(.system(size: 12))
+            Spacer()
+            actionButton
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+        }
+        .task { await notifications.refreshStatus() }
+    }
+
+    private var statusText: String {
+        if NotificationService.isAllowed(notifications.status) { return "已开启" }
+        return notifications.status == .denied ? "已关闭" : "未授权"
+    }
+
+    @ViewBuilder
+    private var actionButton: some View {
+        if notifications.status == .denied {
+            Button("打开系统设置") { notifications.openSystemSettings() }
+        } else if NotificationService.isAllowed(notifications.status) {
+            Button("发送测试通知") { Task { await notifications.sendTestNotification() } }
+        } else {
+            Button("授权并测试") { Task { await notifications.sendTestNotification() } }
+        }
+    }
+}
