@@ -78,4 +78,10 @@ final class AppStateTests: XCTestCase {
         sut.quotes = [:]
         XCTAssertEqual(sut.totalPnL, 0.0, accuracy: 0.001)
     }
+
+    func test_unitTests_doNotStartAutoRefresh() {
+        // 测试宿主就是 Stockbar.app：自动刷新会拿真实数据跑名称同步 / 到价检查
+        XCTAssertTrue(AppState.isRunningUnitTests)
+        XCTAssertNil(sut.scheduler)
+    }
 }

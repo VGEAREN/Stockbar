@@ -148,7 +148,15 @@ final class AppState: ObservableObject {
 
     // MARK: - 刷新调度
 
-    private var scheduler: RefreshScheduler?
+    private(set) var scheduler: RefreshScheduler?
+
+    /// 是否运行在单元测试里。测试宿主就是 Stockbar.app，宿主里的 AppState 读写真实数据目录；
+    /// 测试时不启动自动刷新，避免名称同步 / 到价检查改动用户真实的 stocks.json。
+    /// Xcode 27 下 XCTestConfigurationFilePath 存在但值为空，所以同时看 XCTestSessionIdentifier
+    nonisolated static let isRunningUnitTests: Bool = {
+        let env = ProcessInfo.processInfo.environment
+        return env["XCTestConfigurationFilePath"] != nil || env["XCTestSessionIdentifier"] != nil
+    }()
 
     init() {
         appLogger.info("AppState init start")
@@ -171,6 +179,7 @@ final class AppState: ObservableObject {
     }
 
     func setupScheduler() {
+        guard !Self.isRunningUnitTests else { return }
         scheduler = RefreshScheduler { [weak self] in await self?.refresh() }
         scheduler?.start(interval: TimeInterval(refreshInterval))
     }
