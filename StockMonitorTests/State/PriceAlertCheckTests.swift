@@ -6,7 +6,13 @@ import XCTest
 private final class FakeNotifier: PriceAlertNotifier {
     var authorized = true
     private(set) var hits: [PriceAlertHit] = []
-    func isAuthorized() async -> Bool { authorized }
+    private(set) var authorizationQueries = 0
+    func isAuthorized() async -> Bool {
+        authorizationQueries += 1
+        // 让出执行权（真实实现是跨进程查询），便于测试两次检查在 await 处交错
+        await Task.yield()
+        return authorized
+    }
     func notifyPriceReached(_ hit: PriceAlertHit) { hits.append(hit) }
 }
 
@@ -148,6 +154,41 @@ final class PriceAlertCheckTests: XCTestCase {
         XCTAssertEqual(sut.stocks.map { $0.alert?.isEnabled }, [false, false])
     }
 
+    func test_noPermission_stillResolvesDirectionAndSaves() async throws {
+        notifier.authorized = false
+        sut.stocks = [stock("sh600000", .aStock, PriceAlert(targetPrice: 9.5, direction: nil, isEnabled: true))]
+        sut.quotes = ["sh600000": quote("sh600000", 10)]
+
+        await sut.checkPriceAlerts(now: aStockOpen)
+        XCTAssertEqual(sut.stocks[0].alert?.direction, .fall)
+        XCTAssertEqual(sut.stocks[0].alert?.isEnabled, true)
+        XCTAssertTrue(notifier.hits.isEmpty)
+        XCTAssertEqual(try savedStocks().first?.alert?.direction, .fall)
+    }
+
+    func test_noEnabledAlert_skipsPermissionQuery() async {
+        sut.stocks = [stock("sh600000", .aStock, PriceAlert(targetPrice: 9.5, direction: .fall, isEnabled: false))]
+        sut.quotes = ["sh600000": quote("sh600000", 9.0)]
+
+        await sut.checkPriceAlerts(now: aStockOpen)
+        XCTAssertEqual(notifier.authorizationQueries, 0)
+    }
+
+    func test_overlappingChecks_notifyOnlyOnce() async {
+        sut.stocks = [stock("sh600000", .aStock, fallTo9_5)]
+        sut.quotes = ["sh600000": quote("sh600000", 9.4)]
+
+        // 两次检查在 await 处交错（模拟两次刷新重叠）。先取局部常量，子任务里不直接读测试类的属性
+        let state: AppState = sut
+        let now = aStockOpen
+        async let first: Void = state.checkPriceAlerts(now: now)
+        async let second: Void = state.checkPriceAlerts(now: now)
+        _ = await (first, second)
+
+        XCTAssertEqual(notifier.hits.count, 1, "只通知一次")
+        XCTAssertEqual(notifier.authorizationQueries, 2, "两次检查都走到了 await")
+    }
+
     // MARK: - 美股用哪个价格
 
     func test_usRegularSession_usesRegularPrice() async {
@@ -189,6 +230,33 @@ final class PriceAlertCheckTests: XCTestCase {
     func test_alertPrice_nonPositivePrice_isNil() {
         XCTAssertNil(AppState.alertPrice(for: stock("hk00700", .hkStock, nil),
                                          quote: quote("hk00700", 0), now: aStockOpen))
+    }
+
+    func test_alertPrice_usOvernight_usesOvernightPriceWithLabel() {
+        // 2026-10-29（周四）ET 21:00 夜盘
+        let p = AppState.alertPrice(for: stock("usr_aapl", .usStock, nil),
+                                    quote: quote("usr_aapl", 181, ext: 182.3),
+                                    now: date("America/New_York", 2026, 10, 29, 21, 0))
+        XCTAssertEqual(p?.price, 182.3)
+        XCTAssertEqual(p?.sessionLabel, "夜盘")
+    }
+
+    func test_alertPrice_usOvernight_withoutOvernightPrice_isNil() {
+        // 夜盘没拿到夜盘价：quote.price 是过时的正盘收盘价，不能拿来判断
+        let p = AppState.alertPrice(for: stock("usr_aapl", .usStock, nil),
+                                    quote: quote("usr_aapl", 181),
+                                    now: date("America/New_York", 2026, 10, 29, 21, 0))
+        XCTAssertNil(p)
+    }
+
+    func test_usOvernight_withoutOvernightPrice_doesNotFire() async {
+        // 盘后 183 时设的"跌到 182"；夜盘请求失败只剩正盘收盘价 181，不能误报
+        sut.stocks = [stock("usr_aapl", .usStock, PriceAlert(targetPrice: 182, direction: .fall, isEnabled: true))]
+        sut.quotes = ["usr_aapl": quote("usr_aapl", 181)]
+
+        await sut.checkPriceAlerts(now: date("America/New_York", 2026, 10, 29, 20, 30))
+        XCTAssertTrue(notifier.hits.isEmpty)
+        XCTAssertEqual(sut.stocks[0].alert?.isEnabled, true)
     }
 
     // MARK: - A股集合竞价

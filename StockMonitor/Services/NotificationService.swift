@@ -33,7 +33,9 @@ final class NotificationService: NSObject, ObservableObject, PriceAlertNotifier 
     }
 
     func refreshStatus() async {
-        status = await center.notificationSettings().authorizationStatus
+        let current = await center.notificationSettings().authorizationStatus
+        // 只在变化时赋值：每次刷新都会调用 isAuthorized()，避免无谓地触发界面重绘
+        if current != status { status = current }
     }
 
     func isAuthorized() async -> Bool {

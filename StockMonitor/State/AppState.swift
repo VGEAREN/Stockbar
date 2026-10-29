@@ -83,7 +83,13 @@ final class AppState: ObservableObject {
 
     private func saveStocks(_ stocks: [Stock]) {
         if stocks.isEmpty, !Self.loadStocks().isEmpty { return }
-        guard let data = try? JSONEncoder().encode(stocks) else { return }
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(stocks)
+        } catch {
+            logToFile("saveStocks: failed to encode stocks: \(error)")
+            return
+        }
         Self.backupIfNeeded()
         do {
             try data.write(to: Self.stocksFileURL, options: .atomic)

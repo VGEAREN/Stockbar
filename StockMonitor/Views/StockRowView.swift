@@ -23,6 +23,7 @@ struct StockRowView: View {
                 }
                 .font(.system(size: 9))
                 .foregroundColor(.secondary)
+                .lineLimit(1)
             }
             Spacer(minLength: 4)
             // 右侧：行情 + 盈亏

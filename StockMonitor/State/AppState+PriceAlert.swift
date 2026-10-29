@@ -17,7 +17,7 @@ extension AppState {
         return t >= 9 * 60 + 15 && t < 9 * 60 + 25
     }
 
-    /// 到价判断用的价格；返回 nil 表示这一次不判断（A股集合竞价、价格无效）。
+    /// 到价判断用的价格；返回 nil 表示这一次不判断（A股集合竞价、美股夜盘拿不到夜盘价、价格无效）。
     /// 美股不在盘中时，有时段价（盘前 / 盘后 / 夜盘价）就用时段价并带上时段名；休市时记为「盘后」
     nonisolated static func alertPrice(for stock: Stock, quote: Quote, now: Date) -> (price: Double, sessionLabel: String?)? {
         if stock.market == .aStock && isAStockCallAuction(at: now) { return nil }
@@ -28,6 +28,9 @@ extension AppState {
             if session != "盘中", let ext = quote.extendedPrice, ext > 0 {
                 price = ext
                 label = session ?? "盘后"
+            } else if session == "夜盘" {
+                // 夜盘没拿到本时段成交（请求失败 / 还没成交 / 不支持夜盘）：quote.price 是过时的正盘收盘价，这次不判断
+                return nil
             }
         }
         guard price > 0 else { return nil }
@@ -37,29 +40,40 @@ extension AppState {
     /// 刷新后检查到价提醒：到价 → 关闭开关并保存 → 发通知（只提醒一次）
     func checkPriceAlerts(now: Date = Date()) async {
         guard stocks.contains(where: { $0.alert?.isEnabled == true }) else { return }
+        // 方向未定的先用当前价格定下来：定方向不需要通知权限，免得授权晚了再定、方向和布防时的意图相反
+        resolvePendingDirections(now: now)
         // 没有通知权限时先不触发，开关保持开启，授权后再提醒
         guard await notifier.isAuthorized() else { return }
 
         var updated = stocks
         var hits: [PriceAlertHit] = []
         for i in updated.indices {
-            guard var alert = updated[i].alert, alert.isEnabled,
+            guard var alert = updated[i].alert, alert.isEnabled, let direction = alert.direction,
                   let quote = quotes[updated[i].id],
-                  let current = Self.alertPrice(for: updated[i], quote: quote, now: now) else { continue }
-            if alert.direction == nil {
-                alert.direction = PriceAlert.direction(target: alert.targetPrice, currentPrice: current.price)
-            }
-            if alert.isReached(by: current.price), let direction = alert.direction {
-                alert.isEnabled = false
-                hits.append(PriceAlertHit(stockId: updated[i].id, stockName: updated[i].name,
-                                          price: current.price, targetPrice: alert.targetPrice,
-                                          direction: direction, sessionLabel: current.sessionLabel))
-            }
+                  let current = Self.alertPrice(for: updated[i], quote: quote, now: now),
+                  alert.isReached(by: current.price) else { continue }
+            alert.isEnabled = false
+            hits.append(PriceAlertHit(stockId: updated[i].id, stockName: updated[i].name,
+                                      price: current.price, targetPrice: alert.targetPrice,
+                                      direction: direction, sessionLabel: current.sessionLabel))
             updated[i].alert = alert
         }
         // 先保存再发通知：即使发通知时退出，重启后也不会重复提醒
         if updated != stocks { stocks = updated }
         for hit in hits { notifier.notifyPriceReached(hit) }
+    }
+
+    /// 给开启中、方向未定、且已有可用价格的提醒定方向并保存
+    private func resolvePendingDirections(now: Date) {
+        var updated = stocks
+        for i in updated.indices {
+            guard var alert = updated[i].alert, alert.isEnabled, alert.direction == nil,
+                  let quote = quotes[updated[i].id],
+                  let current = Self.alertPrice(for: updated[i], quote: quote, now: now) else { continue }
+            alert.direction = PriceAlert.direction(target: alert.targetPrice, currentPrice: current.price)
+            updated[i].alert = alert
+        }
+        if updated != stocks { stocks = updated }
     }
 
     // MARK: - 编辑页
@@ -77,6 +91,9 @@ extension AppState {
     @discardableResult
     func saveEdit(stockId: String, cost: Double?, shares: Double?,
                   alertTargetText: String, alertEnabled: Bool, now: Date = Date()) -> PriceAlert? {
+        // 成本 / 股数必须是有限数：Double("inf") / Double("nan") 能解析成功，但 JSONEncoder 编码会抛错，之后的保存会全部失败
+        let cost   = cost.flatMap   { $0.isFinite ? $0 : nil }
+        let shares = shares.flatMap { $0.isFinite ? $0 : nil }
         guard let idx = stocks.firstIndex(where: { $0.id == stockId }) else { return nil }
         var updated = stocks
         let alert = editedAlert(for: updated[idx], targetText: alertTargetText,

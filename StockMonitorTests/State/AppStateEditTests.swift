@@ -111,4 +111,18 @@ final class AppStateEditTests: XCTestCase {
         let a = sut.editedAlert(for: makeStock(), targetText: "9.5", isEnabled: true, now: date(10, 0))
         XCTAssertEqual(a, PriceAlert(targetPrice: 9.5, direction: nil, isEnabled: true))
     }
+
+    func test_saveEdit_nonFiniteHolding_isTreatedAsUnset() throws {
+        sut.stocks = [makeStock()]
+
+        sut.saveEdit(stockId: "sh600000", cost: .infinity, shares: .nan,
+                     alertTargetText: "9.5", alertEnabled: true, now: date(10, 0))
+
+        XCTAssertNil(sut.stocks[0].costPrice)
+        XCTAssertNil(sut.stocks[0].holdingShares)
+        // 同一次保存里的提醒照常写入磁盘（编码没有失败）
+        let data = try Data(contentsOf: tmpDir.appendingPathComponent("stocks.json"))
+        let saved = try JSONDecoder().decode([Stock].self, from: data)
+        XCTAssertEqual(saved.first?.alert?.targetPrice, 9.5)
+    }
 }

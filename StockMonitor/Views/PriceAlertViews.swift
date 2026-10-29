@@ -16,7 +16,9 @@ struct PriceAlertEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("到价提醒", isOn: $isEnabled)
+            // 目标价无效时显示为关闭并禁用；输入途中短暂无效（删空、输到 "0."）不会丢掉勾选
+            Toggle("到价提醒", isOn: Binding(get: { isEnabled && targetIsValid },
+                                             set: { isEnabled = $0 }))
                 .disabled(!targetIsValid)
             HStack {
                 Text("目标价")
@@ -35,9 +37,9 @@ struct PriceAlertEditor: View {
                 }
             }
         }
-        .onChange(of: targetText) { _ in
-            // 目标价无效时开关视为关闭
-            if !targetIsValid { isEnabled = false }
+        .onChange(of: stock.alert?.isEnabled) { enabled in
+            // 编辑期间提醒已触发并自动关闭：同步取消勾选，避免点保存时又反向布防
+            if enabled != true { isEnabled = false }
         }
         .task { await notifications.refreshStatus() }
     }
@@ -48,7 +50,7 @@ struct PriceAlertEditor: View {
         guard alert.direction != nil else { return "暂无可用价格，拿到价格后自动判断涨到还是跌到" }
         let pricePart = appState.quotes[stock.id]
             .flatMap { AppState.alertPrice(for: stock, quote: $0, now: Date()) }
-            .map { "现价 \(Quote.format($0.price))，" } ?? ""
+            .map { "\($0.sessionLabel ?? "现价") \(Quote.format($0.price))，" } ?? ""
         return "\(pricePart)\(alert.summary) 时提醒"
     }
 }
