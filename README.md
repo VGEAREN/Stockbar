@@ -29,6 +29,7 @@
   - US stocks: full extended-hours axis (04:00 – 20:00 ET), covering pre-market, regular, and after-hours
 - **US session indicator** — Displays the current US market session (Pre-market / Regular / After-hours / Night) alongside the session price and percentage change vs. previous close
 - **Portfolio P&L** — Set cost price and share count per stock; see floating P&L and daily P&L live
+- **Price alerts** — Set a target price per stock and get a macOS notification when it rises or falls to it; each stock has its own toggle, and an alert switches itself off after firing once
 - **Sort by change%** — One-click toggle to re-sort the stock list by today's performance
 - **Color themes** — Chinese convention (red = up, green = down) or Western convention (green = up, red = down)
 - **Persistent storage** — Stock list saved to `~/Library/Application Support/Stockbar/stocks.json`; auto-backup with up to 10 rolling snapshots
@@ -70,6 +71,14 @@
 1. In **Settings → My Stocks**, tap the pencil icon next to a stock
 2. Enter your **cost price** and **number of shares**
 3. Floating P&L and daily P&L will appear in the stock row
+
+### Price alerts
+
+1. In **Settings → My Stocks**, click the pencil icon next to a stock
+2. Enter a **target price**, check **到价提醒** (price alert) and save — if the target is above the current price Stockbar waits for the price to rise to it, otherwise to fall to it
+3. When the price gets there you get a system notification and the alert switches off (it fires only once); stocks with an active alert show 🔔 in the list
+
+> The first time you turn on an alert, macOS asks whether Stockbar may send notifications — click **Allow**. You can send a test notification from **Settings → 到价提醒**. Stockbar must be in the **Applications** folder to receive notifications.
 
 ### Intraday chart
 

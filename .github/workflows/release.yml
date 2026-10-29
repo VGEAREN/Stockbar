@@ -60,6 +60,14 @@ jobs:
           APP_PATH=$(find build -name "Stockbar.app" -maxdepth 6 | head -1)
           echo "app_path=$APP_PATH" >> "$GITHUB_OUTPUT"
 
+      - name: Ad-hoc sign (required for notifications)
+        run: |
+          # 未签名的包申请不到系统通知权限（UNErrorDomain Code=1），必须补完整 ad-hoc 签名
+          APP_PATH="${{ steps.locate.outputs.app_path }}"
+          codesign --force --deep --sign - "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign -dv "$APP_PATH" 2>&1 | grep -q "^Identifier=com.vgearen.Stockbar$"
+
       - name: Create DMG
         run: |
           APP_PATH="${{ steps.locate.outputs.app_path }}"
