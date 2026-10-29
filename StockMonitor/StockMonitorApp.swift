@@ -6,6 +6,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         appLogger.info("applicationDidFinishLaunching")
         logToFile("applicationDidFinishLaunching — pid=\(ProcessInfo.processInfo.processIdentifier)")
+        NotificationService.shared.activate()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
