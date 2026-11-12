@@ -72,4 +72,34 @@ final class DataServiceTests: XCTestCase {
     func test_parseTencent_empty() {
         XCTAssertTrue(DataService.parseTencentResponse("").isEmpty)
     }
+
+    // MARK: - 新浪 suggest（搜索兜底，2026-11-12 实测格式）
+
+    func test_parseSinaSuggest_realFormat() {
+        let body = "var suggestvalue=\"AAPL,103,aapl,aapl,AAPL,,AAPL,99,1,,,,;AAPL,41,aapl,aapl,苹果,,苹果,99,1,ESG,,,;"
+            + "安培龙,11,301413,sz301413,安培龙,,安培龙,99,1,,,,;00700,31,00700,00700,腾讯控股,,腾讯控股,99,1,ESG,,,\";"
+        let results = DataService.parseSinaSuggest(body)
+        XCTAssertEqual(results, [
+            SearchResult(id: "usr_aapl", name: "苹果", market: .usStock),
+            SearchResult(id: "sz301413", name: "安培龙", market: .aStock),
+            SearchResult(id: "hk00700", name: "腾讯控股", market: .hkStock),
+        ])
+    }
+
+    func test_parseSinaSuggest_skipsOtherTypesAndBadAStockCodes() {
+        // 103 = 伦敦股、87 = 期货、21 = 基金；类型 11 但完整代码不是 sh/sz/bj 的也跳过
+        let body = "var suggestvalue=\"碳酸锂,87,lc0,lc0,碳酸锂,,碳酸锂,99,1,,,,;国融稳康债券,21,007002,of007002,国融稳康债券,,,99,1,,,,;"
+            + "怪数据,11,123,xx123,怪数据,,,99,1,,,,;浦发银行,11,600000,sh600000,浦发银行,,浦发银行,99,1,ESG,,,\";"
+        XCTAssertEqual(DataService.parseSinaSuggest(body).map(\.id), ["sh600000"])
+    }
+
+    func test_parseSinaSuggest_empty() {
+        XCTAssertTrue(DataService.parseSinaSuggest("var suggestvalue=\"\";").isEmpty)
+        XCTAssertTrue(DataService.parseSinaSuggest("").isEmpty)
+    }
+
+    func test_sinaSuggestURL_onlyStockTypes() {
+        XCTAssertEqual(DataService.sinaSuggestURL("aapl")?.absoluteString,
+                       "https://suggest3.sinajs.cn/suggest/type=11,31,41&key=aapl")
+    }
 }

@@ -18,10 +18,6 @@ struct SettingsView: View {
     @State private var editAlertOn   = false
     @State private var newWatchlistName = ""
 
-    struct SearchResult: Identifiable {
-        let id: String; let name: String; let market: Market
-    }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -497,32 +493,13 @@ struct SettingsView: View {
         }
     }
 
-    /// 新浪 suggest 兜底（主要覆盖美股/期货等腾讯接口不返回的品种）
+    /// 新浪 suggest 兜底（腾讯和 Yahoo 都搜不到时用）
     private func sinaFetchSuggestions(_ keyword: String) async -> [SearchResult] {
-        guard let encoded = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://suggest3.sinajs.cn/suggest/type=11,12,13,14&key=\(encoded)"),
+        guard let url = DataService.sinaSuggestURL(keyword),
               let (data, _) = try? await URLSession.shared.data(from: url) else {
             return directResult(for: keyword)
         }
-        let body = StringDecoding.decodeGBK(data)
-        guard let s = body.range(of: "\""),
-              let e = body.lastIndex(of: "\""),
-              e > s.upperBound else { return directResult(for: keyword) }
-        let results = String(body[body.index(after: s.lowerBound)..<e])
-            .components(separatedBy: ";")
-            .filter { !$0.isEmpty }
-            .compactMap { item -> SearchResult? in
-                let p = item.components(separatedBy: ",")
-                guard p.count >= 5 else { return nil }
-                let market: Market; let id: String
-                switch p[0] {
-                case "11", "14": market = .aStock;  id = p[3].lowercased()
-                case "12":       market = .hkStock; id = "hk" + p[3].lowercased()
-                case "13":       market = .usStock; id = p[3].lowercased()
-                default: return nil
-                }
-                return SearchResult(id: id, name: p[4], market: market)
-            }
+        let results = DataService.parseSinaSuggest(StringDecoding.decodeGBK(data))
         return results.isEmpty ? directResult(for: keyword) : results
     }
 

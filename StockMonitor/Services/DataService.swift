@@ -143,6 +143,45 @@ final class DataService {
         }
     }
 
+    // MARK: - 新浪 suggest（搜索兜底）
+
+    /// 新浪 suggest 地址：type 11 = A股、31 = 港股、41 = 美股
+    static func sinaSuggestURL(_ keyword: String) -> URL? {
+        guard let encoded = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return nil }
+        return URL(string: "https://suggest3.sinajs.cn/suggest/type=11,31,41&key=\(encoded)")
+    }
+
+    /// 解析新浪 suggest 响应（抽出供单元测试使用）。
+    /// 每条格式："名称或代码,类型,代码,完整代码,名称,..."，多条用 ; 分隔，例如
+    /// `AAPL,41,aapl,aapl,苹果,,...`、`00700,31,00700,00700,腾讯控股,,...`、`浦发银行,11,600000,sh600000,浦发银行,,...`
+    /// （以前把第 0 个字段当类型，和接口实际格式对不上，这个兜底一直没生效）
+    static func parseSinaSuggest(_ body: String) -> [SearchResult] {
+        guard let s = body.firstIndex(of: "\""),
+              let e = body.lastIndex(of: "\""),
+              e > s else { return [] }
+        return String(body[body.index(after: s)..<e])
+            .components(separatedBy: ";")
+            .filter { !$0.isEmpty }
+            .compactMap { item -> SearchResult? in
+                let p = item.components(separatedBy: ",")
+                guard p.count >= 5 else { return nil }
+                let code = p[2].lowercased()
+                let full = p[3].lowercased()
+                let name = p[4].isEmpty ? p[0] : p[4]
+                switch p[1] {
+                case "11":
+                    guard full.hasPrefix("sh") || full.hasPrefix("sz") || full.hasPrefix("bj") else { return nil }
+                    return SearchResult(id: full, name: name, market: .aStock)
+                case "31":
+                    return SearchResult(id: "hk\(code)", name: name, market: .hkStock)
+                case "41":
+                    return SearchResult(id: "usr_\(code)", name: name, market: .usStock)
+                default:
+                    return nil
+                }
+            }
+    }
+
     // MARK: - 腾讯证券（港股）— parseTencentResponse 入口
 
     /// 解析腾讯港股响应字符串

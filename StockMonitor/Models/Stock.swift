@@ -64,3 +64,9 @@ extension Stock: Codable {
         alert        = try? c.decodeIfPresent(PriceAlert.self, forKey: .alert)
     }
 }
+
+// MARK: - 搜索结果（设置页搜索添加）
+
+struct SearchResult: Identifiable, Equatable {
+    let id: String; let name: String; let market: Market
+}
