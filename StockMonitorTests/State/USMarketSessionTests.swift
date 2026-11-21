@@ -41,4 +41,21 @@ final class USMarketSessionTests: XCTestCase {
         let d = etDate(year: 2026, month: 10, day: 11, hour: 20, minute: 0)
         XCTAssertEqual(AppState.usMarketSession(at: d), "夜盘")
     }
+
+    // MARK: - 盘外价的时段名（休市时新浪给的是上一个交易日的盘后收盘价）
+
+    func test_extendedPriceLabel_closedMarket_isAfterHours() {
+        // 2026-11-20 (Friday) 22:45 ET = 北京周六 11:45，周五晚没有夜盘
+        XCTAssertEqual(AppState.usExtendedPriceLabel(at: etDate(year: 2026, month: 11, day: 20, hour: 22, minute: 45)), "盘后")
+        // 周六中午
+        XCTAssertEqual(AppState.usExtendedPriceLabel(at: etDate(year: 2026, month: 11, day: 21, hour: 12, minute: 0)), "盘后")
+        // 周日 19:59，夜盘开盘前一分钟
+        XCTAssertEqual(AppState.usExtendedPriceLabel(at: etDate(year: 2026, month: 11, day: 22, hour: 19, minute: 59)), "盘后")
+    }
+
+    func test_extendedPriceLabel_tradingDay_followsSession() {
+        XCTAssertEqual(AppState.usExtendedPriceLabel(at: etDate(year: 2026, month: 11, day: 19, hour: 5, minute: 0)), "盘前")
+        XCTAssertEqual(AppState.usExtendedPriceLabel(at: etDate(year: 2026, month: 11, day: 19, hour: 17, minute: 0)), "盘后")
+        XCTAssertEqual(AppState.usExtendedPriceLabel(at: etDate(year: 2026, month: 11, day: 22, hour: 20, minute: 0)), "夜盘")
+    }
 }

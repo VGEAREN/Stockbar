@@ -27,7 +27,7 @@ extension AppState {
             let session = usMarketSession(at: now)
             if session != "盘中", let ext = quote.extendedPrice, ext > 0 {
                 price = ext
-                label = session ?? "盘后"
+                label = usExtendedPriceLabel(at: now)
             } else if session == "夜盘" {
                 // 夜盘没拿到本时段成交（请求失败 / 还没成交 / 不支持夜盘）：quote.price 是过时的正盘收盘价，这次不判断
                 return nil

@@ -417,4 +417,10 @@ final class AppState: ObservableObject {
             return nil
         }
     }
+
+    /// 美股盘外价（行情下面那一行、到价提醒）的时段名。休市时（美东周五 20:00 到周日 20:00 夜盘开盘）
+    /// 新浪的盘外价是上一个交易日的盘后收盘价，记为「盘后」——以前休市时那一行不显示，周末看不到周五盘后
+    nonisolated static func usExtendedPriceLabel(at now: Date = Date()) -> String {
+        usMarketSession(at: now) ?? "盘后"
+    }
 }

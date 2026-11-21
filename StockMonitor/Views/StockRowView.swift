@@ -38,10 +38,9 @@ struct StockRowView: View {
                             .foregroundColor(appState.quoteColor(for: q))
                     }
                     if stock.market == .usStock,
-                       let session = AppState.usMarketSession(),
                        let extPrice = q.formattedExtendedPrice,
                        let extPct = q.formattedExtendedPercent {
-                        Text("\(session) \(extPrice)  \(extPct)")
+                        Text("\(AppState.usExtendedPriceLabel()) \(extPrice)  \(extPct)")
                             .font(.system(size: 9))
                             .foregroundColor(
                                 (q.extendedChangePercent ?? 0) >= 0
