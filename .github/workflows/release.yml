@@ -87,10 +87,18 @@ jobs:
 
           echo "DMG created: $DMG_NAME"
 
+      - name: Release notes with SHA-256
+        run: |
+          # 应用内更新（UpdateChecker）从 release 说明里取 "SHA-256: <hex>" 校验下载的 DMG，没有这一行就跳过校验
+          DMG_NAME="Stockbar-${GITHUB_REF_NAME}.dmg"
+          echo "SHA-256: $(shasum -a 256 "$DMG_NAME" | awk '{print $1}')" > release_body.md
+          cat release_body.md
+
       - name: Upload Release
         uses: softprops/action-gh-release@v2
         with:
           files: Stockbar-*.dmg
+          body_path: release_body.md
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
